@@ -2,8 +2,10 @@ import adsk.core
 import os
 
 from ..commandDialog.utils import set_component_visibilit
+from ..commandDialog.dialog_config import dialogItems
 from ...lib import fusionAddInUtils as futil
 from ... import config
+
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -29,45 +31,6 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
-
-paramInputs = [
-    {
-        "paramName": "J1_sirina",
-        "inputName": "ukupna_sirina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Širina",
-    },
-    {
-        "paramName": "J1_dubina",
-        "inputName": "ukupna_dubina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Dubina",
-    },
-    {
-        "paramName": "J1_visina",
-        "inputName": "ukupna_visina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Visina",
-    },
-    {
-        "paramName": "J1_ukrute",
-        "inputName": "ukrute_enabled",
-        "inputType": "bool",
-        "inputDescription": "Ukrute",
-    },
-    {
-        "paramName": "J1_gornja_ploca",
-        "inputName": "gornja_ploca_enabled",
-        "inputType": "bool",
-        "inputDescription": "Gornja Ploča",
-    },
-    {
-        "paramName": "J1_fronta",
-        "inputName": "fronta_enabled",
-        "inputType": "bool",
-        "inputDescription": "Fronta",
-    },
-]
 
 
 # Executed when add-in is run.
@@ -117,11 +80,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f"{CMD_NAME} Command Created Event")
 
-    # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
-    inputs = args.command.commandInputs
-
-    # TODO Define the dialog for your command by adding different inputs to the command.
-
     # Create a simple text box input.
     # inputs.addTextBoxCommandInput("text_box", "Some Text", "Enter some text.", 1, False)
 
@@ -132,25 +90,57 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     design = app.activeProduct
     userParams = design.userParameters
 
+    #####  CREATING A DIALOG  #####
     # default_value = adsk.core.ValueInput.createByString("60")
-    for paramInput in paramInputs:
-        param = userParams.itemByName(paramInput["paramName"])
-        if param:
-            if paramInput["inputType"] == "value":
-                inputs.addValueInput(
-                    paramInput["inputName"],
-                    paramInput["inputDescription"],
-                    defaultLengthUnits,
-                    adsk.core.ValueInput.createByReal(param.value),
+    for dialogItem in dialogItems:
+        param = (
+            userParams.itemByName(dialogItem.get("paramName"))
+            if dialogItem.get("paramName")
+            else None
+        )
+
+        # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
+        inputs = args.command.commandInputs
+
+        if dialogItem.get("parrent"):
+            parent = inputs.itemById(dialogItem["parrent"])
+            # if the parent is not found, log the error and continue
+            if not parent:
+                futil.log(
+                    f"Parent {dialogItem['parrent']} not found.",
+                    adsk.core.LogLevels.WarningLogLevel,
                 )
-            elif paramInput["inputType"] == "bool":
-                inputs.addBoolValueInput(
-                    paramInput["inputName"],
-                    paramInput["inputDescription"],
-                    True,
-                    "",
-                    bool(param.value),
-                )
+            inputs = parent.children if parent else inputs
+
+        if dialogItem["inputType"] == "value" and param:
+            inputs.addValueInput(
+                dialogItem["inputName"],
+                dialogItem["inputDescription"],
+                defaultLengthUnits,
+                adsk.core.ValueInput.createByReal(param.value),
+            )
+        elif dialogItem["inputType"] == "bool" and param:
+            inputs.addBoolValueInput(
+                dialogItem["inputName"],
+                dialogItem["inputDescription"],
+                True,
+                "",
+                bool(param.value),
+            )
+        elif dialogItem["inputType"] == "integer" and param:
+            inputs.addIntegerSpinnerCommandInput(
+                dialogItem["inputName"],
+                dialogItem["inputDescription"],
+                1,
+                100,
+                1,
+                int(param.value),
+            )
+        elif dialogItem["inputType"] == "group":
+            group = inputs.addGroupCommandInput(
+                dialogItem["inputName"], dialogItem["inputDescription"]
+            )
+            group.isExpanded = True
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(
@@ -185,13 +175,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # Get a reference to your command's inputs.
     inputs = args.command.commandInputs
 
-    for paramInput in paramInputs:
+    for paramInput in filter(lambda x: "paramName" in x, dialogItems):
         param = userParams.itemByName(paramInput["paramName"])
         if param:
-            if paramInput["inputType"] == "value":
+            if paramInput["inputType"] in "value":
                 param.expression = inputs.itemById(paramInput["inputName"]).expression
             elif paramInput["inputType"] == "bool":
                 param.value = 1 if inputs.itemById(paramInput["inputName"]).value else 0
+            elif paramInput["inputType"] == "integer":
+                param.expression = str(inputs.itemById(paramInput["inputName"]).value)
 
     set_component_visibilit()
     # ui.messageBox("Ormari su kreirani!")
@@ -240,7 +232,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputs = args.inputs
 
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    for paramInput in filter(lambda x: x["inputType"] == "value", paramInputs):
+    for paramInput in filter(lambda x: x["inputType"] == "value", dialogItems):
         input = inputs.itemById(paramInput["inputName"])
         if input:
             if input.value == "":
