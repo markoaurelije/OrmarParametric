@@ -1,5 +1,7 @@
 import adsk.core
 import os
+
+from ..commandDialog.utils import set_component_visibilit
 from ...lib import fusionAddInUtils as futil
 from ... import config
 
@@ -27,6 +29,45 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
+
+paramInputs = [
+    {
+        "paramName": "J1_sirina",
+        "inputName": "ukupna_sirina",
+        "inputType": "value",
+        "inputDescription": "Ukupna Širina",
+    },
+    {
+        "paramName": "J1_dubina",
+        "inputName": "ukupna_dubina",
+        "inputType": "value",
+        "inputDescription": "Ukupna Dubina",
+    },
+    {
+        "paramName": "J1_visina",
+        "inputName": "ukupna_visina",
+        "inputType": "value",
+        "inputDescription": "Ukupna Visina",
+    },
+    {
+        "paramName": "J1_ukrute",
+        "inputName": "ukrute_enabled",
+        "inputType": "bool",
+        "inputDescription": "Ukrute",
+    },
+    {
+        "paramName": "J1_gornja_ploca",
+        "inputName": "gornja_ploca_enabled",
+        "inputType": "bool",
+        "inputDescription": "Gornja Ploča",
+    },
+    {
+        "paramName": "J1_fronta",
+        "inputName": "fronta_enabled",
+        "inputType": "bool",
+        "inputDescription": "Fronta",
+    },
+]
 
 
 # Executed when add-in is run.
@@ -91,56 +132,25 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     design = app.activeProduct
     userParams = design.userParameters
 
-    default_value = adsk.core.ValueInput.createByString("60")
-    sirina = userParams.itemByName("J1_sirina")
-    inputs.addValueInput(
-        "ukupna_sirina",
-        "Ukupna Širina",
-        defaultLengthUnits,
-        adsk.core.ValueInput.createByReal(sirina.value if sirina else default_value),
-    )
-    dubina = userParams.itemByName("J1_dubina")
-    inputs.addValueInput(
-        "ukupna_dubina",
-        "Ukupna Dubina",
-        defaultLengthUnits,
-        adsk.core.ValueInput.createByReal(dubina.value if dubina else default_value),
-    )
-    visina = userParams.itemByName("J1_visina")
-    inputs.addValueInput(
-        "ukupna_visina",
-        "Ukupna Visina",
-        defaultLengthUnits,
-        adsk.core.ValueInput.createByReal(visina.value if visina else default_value),
-    )
-
-    # add the check box input
-    ukrute_enabled = userParams.itemByName("J1_ukrute")
-    inputs.addBoolValueInput(
-        "ukrute_enabled",
-        "ukrute",
-        True,
-        "",
-        bool(ukrute_enabled.value if ukrute_enabled else False),
-    )
-
-    gornja_ploca_enabled = userParams.itemByName("J1_gornja_ploca")
-    inputs.addBoolValueInput(
-        "gornja_ploca_enabled",
-        "gornja ploca",
-        True,
-        "",
-        bool(gornja_ploca_enabled.value if gornja_ploca_enabled else False),
-    )
-
-    fronta_enabled = userParams.itemByName("J1_fronta")
-    inputs.addBoolValueInput(
-        "fronta_enabled",
-        "fronta",
-        True,
-        "",
-        bool(fronta_enabled.value if fronta_enabled else False),
-    )
+    # default_value = adsk.core.ValueInput.createByString("60")
+    for paramInput in paramInputs:
+        param = userParams.itemByName(paramInput["paramName"])
+        if param:
+            if paramInput["inputType"] == "value":
+                inputs.addValueInput(
+                    paramInput["inputName"],
+                    paramInput["inputDescription"],
+                    defaultLengthUnits,
+                    adsk.core.ValueInput.createByReal(param.value),
+                )
+            elif paramInput["inputType"] == "bool":
+                inputs.addBoolValueInput(
+                    paramInput["inputName"],
+                    paramInput["inputDescription"],
+                    True,
+                    "",
+                    bool(param.value),
+                )
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(
@@ -175,51 +185,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # Get a reference to your command's inputs.
     inputs = args.command.commandInputs
 
-    ukupna_sirina: adsk.core.ValueCommandInput = inputs.itemById("ukupna_sirina")
-    ukupna_dubina: adsk.core.ValueCommandInput = inputs.itemById("ukupna_dubina")
-    ukupna_visina: adsk.core.ValueCommandInput = inputs.itemById("ukupna_visina")
-    ukrute_enabled_checkbok: adsk.core.BoolValueCommandInput = inputs.itemById(
-        "ukrute_enabled"
-    )
-    gornja_ploca_enabled_checkbok: adsk.core.BoolValueCommandInput = inputs.itemById(
-        "gornja_ploca_enabled"
-    )
-    fronta_enabled_checkbok: adsk.core.BoolValueCommandInput = inputs.itemById(
-        "fronta_enabled"
-    )
-
-    ### Do something interesting ###
-
-    # set the value of the user parameter
-    sirina = userParams.itemByName("J1_sirina")
-    if sirina:
-        sirina.expression = ukupna_sirina.expression
-        futil.log(f"Set the value of the user parameter to {sirina.value}")
-    dubina = userParams.itemByName("J1_dubina")
-    if dubina:
-        dubina.expression = ukupna_dubina.expression
-        futil.log(f"Set the value of the user parameter to {dubina.value}")
-    visina = userParams.itemByName("J1_visina")
-    if visina:
-        visina.expression = ukupna_visina.expression
-        futil.log(f"Set the value of the user parameter to {visina.value}")
-
-    ukrute_enabled = userParams.itemByName("J1_ukrute")
-    if ukrute_enabled:
-        ukrute_enabled.value = 1 if ukrute_enabled_checkbok.value else 0
-        futil.log(f"Set the value of the user parameter to {ukrute_enabled.value}")
-
-    gornja_ploca_enabled = userParams.itemByName("J1_gornja_ploca")
-    if gornja_ploca_enabled:
-        gornja_ploca_enabled.value = 1 if gornja_ploca_enabled_checkbok.value else 0
-        futil.log(
-            f"Set the value of the user parameter to {gornja_ploca_enabled.value}"
-        )
-
-    fronta_enabled = userParams.itemByName("J1_fronta")
-    if fronta_enabled:
-        fronta_enabled.value = 1 if fronta_enabled_checkbok.value else 0
-        futil.log(f"Set the value of the user parameter to {fronta_enabled.value}")
+    for paramInput in paramInputs:
+        param = userParams.itemByName(paramInput["paramName"])
+        if param:
+            if paramInput["inputType"] == "value":
+                param.expression = inputs.itemById(paramInput["inputName"]).expression
+            elif paramInput["inputType"] == "bool":
+                param.value = 1 if inputs.itemById(paramInput["inputName"]).value else 0
 
     set_component_visibilit()
     # ui.messageBox("Ormari su kreirani!")
@@ -229,6 +201,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
 def command_preview(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     inputs = args.command.commandInputs
+    futil.log(f"{CMD_NAME} Command Preview Event")
 
 
 # This event handler is called when the user changes anything in the command dialog
@@ -237,20 +210,20 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     inputs = args.inputs
 
-    if changed_input.id == "ukrute_enabled":
-        # Get the value of the input
-        value = changed_input.value
-        # General logging for debug.
-        futil.log(
-            f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id} with value {value}"
-        )
-        # set the value of the user parameter
-        design = app.activeProduct
-        userParams = design.userParameters
-        ukrute_enabled = userParams.itemByName("J1_ukrute")
-        if ukrute_enabled:
-            ukrute_enabled.value = 1 if value else 0
-            futil.log(f"Set the value of the user parameter to {ukrute_enabled.value}")
+    # if changed_input.id == "ukrute_enabled":
+    #     # Get the value of the input
+    #     value = changed_input.value
+    #     # General logging for debug.
+    #     futil.log(
+    #         f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id} with value {value}"
+    #     )
+    #     # set the value of the user parameter
+    #     design = app.activeProduct
+    #     userParams = design.userParameters
+    #     ukrute_enabled = userParams.itemByName("J1_ukrute")
+    #     if ukrute_enabled:
+    #         ukrute_enabled.value = 1 if value else 0
+    #         futil.log(f"Set the value of the user parameter to {ukrute_enabled.value}")
 
     # General logging for debug.
     futil.log(
@@ -267,16 +240,17 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputs = args.inputs
 
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInputs = [
-        inputs.itemById("ukupna_sirina"),
-        inputs.itemById("ukupna_dubina"),
-        inputs.itemById("ukupna_visina"),
-    ]
-    for valueInput in valueInputs:
-        if valueInput.value >= 0:
-            args.areInputsValid = True
-        else:
-            args.areInputsValid = False
+    for paramInput in filter(lambda x: x["inputType"] == "value", paramInputs):
+        input = inputs.itemById(paramInput["inputName"])
+        if input:
+            if input.value == "":
+                args.areInputsValid = False
+                input.tooltip = "This value cannot be empty."
+            elif input.value <= 0:
+                args.areInputsValid = False
+                input.tooltip = "This value must be greater than zero."
+            else:
+                args.areInputsValid = True
 
 
 # This event handler is called when the command terminates.
@@ -286,39 +260,3 @@ def command_destroy(args: adsk.core.CommandEventArgs):
 
     global local_handlers
     local_handlers = []
-
-
-def set_component_visibilit():
-    app = adsk.core.Application.get()
-    design = app.activeProduct
-    rootComp = design.rootComponent
-
-    gornja_ploca_presence = design.userParameters.itemByName("J1_gornja_ploca")
-    ukrute_presence = design.userParameters.itemByName("J1_ukrute")
-    fronta_presence = design.userParameters.itemByName("J1_fronta")
-
-    # Get the target component (change index if needed)
-    gornjaPlocaComp = None
-    ukruteComp = None
-    frontaComp = None
-    for occurrence in rootComp.occurrences:
-        if occurrence.component.name == "gornja_ploca":
-            gornjaPlocaComp = occurrence
-        elif occurrence.component.name == "ukrute":
-            ukruteComp = occurrence
-        elif occurrence.component.name == "fronta":
-            frontaComp = occurrence
-        if gornjaPlocaComp and ukruteComp:
-            break
-
-    if gornja_ploca_presence and gornjaPlocaComp:
-        gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
-
-    if fronta_presence:
-        frontaComp.isLightBulbOn = bool(fronta_presence.value)
-
-    app.log(
-        f"Ukrute presence: {ukrute_presence and ukrute_presence.value}, ukruteComp: {ukruteComp and ukruteComp.name}"
-    )
-    if ukrute_presence and ukruteComp:
-        ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
