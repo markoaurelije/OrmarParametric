@@ -11,8 +11,8 @@ from .paletteSend import entry as paletteSend
 # Fusion will automatically call the start() and stop() functions.
 commands = [
     commandDialog,
-    paletteShow,
-    paletteSend
+    # paletteShow,
+    # paletteSend
 ]
 
 
