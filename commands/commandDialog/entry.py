@@ -113,14 +113,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
             inputs = parent.children if parent else inputs
 
         if dialogItem["inputType"] == "value" and param:
-            inputs.addValueInput(
+            input = inputs.addValueInput(
                 dialogItem["inputName"],
                 dialogItem["inputDescription"],
                 defaultLengthUnits,
                 adsk.core.ValueInput.createByReal(param.value),
             )
         elif dialogItem["inputType"] == "bool" and param:
-            inputs.addBoolValueInput(
+            input = inputs.addBoolValueInput(
                 dialogItem["inputName"],
                 dialogItem["inputDescription"],
                 True,
@@ -128,7 +128,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
                 bool(param.value),
             )
         elif dialogItem["inputType"] == "integer" and param:
-            inputs.addIntegerSpinnerCommandInput(
+            input = inputs.addIntegerSpinnerCommandInput(
                 dialogItem["inputName"],
                 dialogItem["inputDescription"],
                 1,
@@ -137,10 +137,19 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
                 int(param.value),
             )
         elif dialogItem["inputType"] == "group":
-            group = inputs.addGroupCommandInput(
+            input = group = inputs.addGroupCommandInput(
                 dialogItem["inputName"], dialogItem["inputDescription"]
             )
             group.isExpanded = True
+        else:
+            input = None
+            futil.log(
+                f"Dialog item {dialogItem} not created.",
+                adsk.core.LogLevels.WarningLogLevel,
+            )
+
+        if input and dialogItem.get("tooltip"):
+            input.tooltipDescription = dialogItem["tooltip"]
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(
@@ -221,17 +230,17 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputs = args.inputs
 
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    for paramInput in filter(lambda x: x["inputType"] == "value", dialogItems):
-        input = inputs.itemById(paramInput["inputName"])
-        if input:
-            if input.value == "":
-                args.areInputsValid = False
-                input.tooltip = "This value cannot be empty."
-            elif input.value <= 0:
-                args.areInputsValid = False
-                input.tooltip = "This value must be greater than zero."
-            else:
-                args.areInputsValid = True
+    # for paramInput in filter(lambda x: x["inputType"] == "value", dialogItems):
+    #     input = inputs.itemById(paramInput["inputName"])
+    #     if input:
+    #         if input.value == "":
+    #             args.areInputsValid = False
+    #             input.tooltip = "This value cannot be empty."
+    #         elif input.value <= 0:
+    #             args.areInputsValid = False
+    #             input.tooltip = "This value must be greater than zero."
+    #         else:
+    #             args.areInputsValid = True
 
 
 # This event handler is called when the command terminates.

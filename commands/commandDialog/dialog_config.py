@@ -7,6 +7,7 @@ class DialogItem(TypedDict):
     inputType: str
     inputDescription: str
     parrent: NotRequired[str]
+    tooltip: NotRequired[str]
 
 
 dialogItems: list[DialogItem] = [
@@ -35,11 +36,39 @@ dialogItems: list[DialogItem] = [
         "inputType": "value",
         "inputDescription": "Debljina donje ploče",
     },
+    # group bokovi
+    {
+        "inputName": "grupa_bokovi",
+        "inputType": "group",
+        "inputDescription": "Bokovi",
+    },
     {
         "paramName": "J1_bokovi_na_donju_plocu",
         "inputName": "bokovi_na_donju_plocu",
         "inputType": "bool",
         "inputDescription": "Bokovi na donju ploču",
+        "parrent": "grupa_bokovi",
+    },
+    {
+        "paramName": "J1_bokovi_do_gornje_ploce",
+        "inputName": "bokovi_do_gornje_ploce",
+        "inputType": "bool",
+        "inputDescription": "Bokovi do gornje ploče",
+        "parrent": "grupa_bokovi",
+    },
+    {
+        "paramName": "J1_bok_lijevo_debljina",
+        "inputName": "bok_lijevo_debljina",
+        "inputType": "value",
+        "inputDescription": "Debljina boka lijevo",
+        "parrent": "grupa_bokovi",
+    },
+    {
+        "paramName": "J1_bok_desno_debljina",
+        "inputName": "bok_desno_debljina",
+        "inputType": "value",
+        "inputDescription": "Debljina boka desno",
+        "parrent": "grupa_bokovi",
     },
     # grupa gornja ploca
     {
@@ -113,6 +142,14 @@ dialogItems: list[DialogItem] = [
         "inputName": "ledja_upust",
         "inputType": "value",
         "inputDescription": "Upust leđa",
+        "parrent": "grupa_ledja",
+        "tooltip": "Za kuhinjske visece elemente upust je 15mm od kraja ledja, upisati 15+J1_leđa_debljina",
+    },
+    {
+        "paramName": "J1_leđa_dubina_slota_u_bokovima",
+        "inputName": "ledja_dubina_slota_u_bokovima",
+        "inputType": "value",
+        "inputDescription": "Dubina slota u bokovima",
         "parrent": "grupa_ledja",
     },
     # grupa fronta
