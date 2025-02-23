@@ -10,6 +10,7 @@ class DialogItem(TypedDict):
 
 
 dialogItems: list[DialogItem] = [
+    # global
     {
         "paramName": "J1_sirina",
         "inputName": "ukupna_sirina",
@@ -29,17 +30,18 @@ dialogItems: list[DialogItem] = [
         "inputDescription": "Ukupna Visina",
     },
     {
-        "paramName": "J1_ukrute",
-        "inputName": "ukrute_enabled",
-        "inputType": "bool",
-        "inputDescription": "Ukrute",
-    },
-    {
         "paramName": "J1_donja_ploca_debljina",
         "inputName": "donja_ploca_debljina",
         "inputType": "value",
         "inputDescription": "Debljina donje ploče",
     },
+    {
+        "paramName": "J1_bokovi_na_donju_plocu",
+        "inputName": "bokovi_na_donju_plocu",
+        "inputType": "bool",
+        "inputDescription": "Bokovi na donju ploču",
+    },
+    # grupa gornja ploca
     {
         "inputName": "grupa_gornja_ploca",
         "inputType": "group",
@@ -65,6 +67,53 @@ dialogItems: list[DialogItem] = [
         "inputType": "value",
         "inputDescription": "Napust gornje ploče",
         "parrent": "grupa_gornja_ploca",
+    },
+    # grupa ukrute
+    {
+        "inputName": "grupa_ukrute",
+        "inputType": "group",
+        "inputDescription": "Ukrute",
+    },
+    {
+        "paramName": "J1_ukrute",
+        "inputName": "ukrute_enabled",
+        "inputType": "bool",
+        "inputDescription": "Ukrute",
+        "parrent": "grupa_ukrute",
+    },
+    {
+        "paramName": "J1_ukruta_širina",
+        "inputName": "ukruta_sirina",
+        "inputType": "value",
+        "inputDescription": "Širina ukrute",
+        "parrent": "grupa_ukrute",
+    },
+    # group ledja
+    {
+        "inputName": "grupa_ledja",
+        "inputType": "group",
+        "inputDescription": "Ledja",
+    },
+    {
+        "paramName": "J1_leđa_debljina",
+        "inputName": "ledja_debljina",
+        "inputType": "value",
+        "inputDescription": "Debljina leđa",
+        "parrent": "grupa_ledja",
+    },
+    {
+        "paramName": "J1_leđa_ofset",
+        "inputName": "ledja_ofset",
+        "inputType": "value",
+        "inputDescription": "Ofset leđa",
+        "parrent": "grupa_ledja",
+    },
+    {
+        "paramName": "J1_leđa_upust",
+        "inputName": "ledja_upust",
+        "inputType": "value",
+        "inputDescription": "Upust leđa",
+        "parrent": "grupa_ledja",
     },
     # grupa fronta
     {

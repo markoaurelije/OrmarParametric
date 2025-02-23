@@ -180,6 +180,9 @@ def command_preview(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     inputs = args.command.commandInputs
     futil.log(f"{CMD_NAME} Command Preview Event")
+    # I want to show the preview with the user parameters changed
+    set_user_parameters(args)
+    set_component_visibilit()
 
 
 # This event handler is called when the user changes anything in the command dialog
