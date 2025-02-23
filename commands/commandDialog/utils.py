@@ -1,4 +1,25 @@
 import adsk.core
+from ..commandDialog.dialog_config import dialogItems
+
+app = adsk.core.Application.get()
+
+
+def set_user_parameters(args: adsk.core.CommandEventArgs):
+
+    design = app.activeProduct
+    userParams = design.userParameters
+    # Get a reference to your command's inputs.
+    inputs = args.command.commandInputs
+
+    for paramInput in filter(lambda x: "paramName" in x, dialogItems):
+        param = userParams.itemByName(paramInput["paramName"])
+        if param:
+            if paramInput["inputType"] in "value":
+                param.expression = inputs.itemById(paramInput["inputName"]).expression
+            elif paramInput["inputType"] == "bool":
+                param.value = 1 if inputs.itemById(paramInput["inputName"]).value else 0
+            elif paramInput["inputType"] == "integer":
+                param.expression = str(inputs.itemById(paramInput["inputName"]).value)
 
 
 def set_component_visibilit():

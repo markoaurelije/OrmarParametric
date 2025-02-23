@@ -1,7 +1,7 @@
 import adsk.core
 import os
 
-from ..commandDialog.utils import set_component_visibilit
+from ..commandDialog.utils import set_component_visibilit, set_user_parameters
 from ..commandDialog.dialog_config import dialogItems
 from ...lib import fusionAddInUtils as futil
 from ... import config
@@ -168,23 +168,9 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f"{CMD_NAME} Command Execute Event")
 
-    design = app.activeProduct
-    userParams = design.userParameters
     #  ******************************** Your code here ********************************
 
-    # Get a reference to your command's inputs.
-    inputs = args.command.commandInputs
-
-    for paramInput in filter(lambda x: "paramName" in x, dialogItems):
-        param = userParams.itemByName(paramInput["paramName"])
-        if param:
-            if paramInput["inputType"] in "value":
-                param.expression = inputs.itemById(paramInput["inputName"]).expression
-            elif paramInput["inputType"] == "bool":
-                param.value = 1 if inputs.itemById(paramInput["inputName"]).value else 0
-            elif paramInput["inputType"] == "integer":
-                param.expression = str(inputs.itemById(paramInput["inputName"]).value)
-
+    set_user_parameters(args)
     set_component_visibilit()
     # ui.messageBox("Ormari su kreirani!")
 
