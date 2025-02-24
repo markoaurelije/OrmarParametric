@@ -158,6 +158,7 @@ def set_component_visibility():
     ukrute_presence = design.userParameters.itemByName("J1_ukrute")
     fronta_presence = design.userParameters.itemByName("J1_fronta")
     lijevo_otvaranje = design.userParameters.itemByName("J1_fronta_ljevo_otvaranje")
+    dvostrano_otvaranje = design.userParameters.itemByName("J1_fronta_ljeva_i_desna")
 
     # Get the target component (change index if needed)
     gornjaPlocaComp = None
@@ -182,8 +183,12 @@ def set_component_visibility():
         gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
 
     if fronta_presence:
-        lijeva_fronta.isLightBulbOn = bool(lijevo_otvaranje.value)
-        desna_fronta.isLightBulbOn = not bool(lijevo_otvaranje.value)
+        lijeva_fronta.isLightBulbOn = bool(
+            lijevo_otvaranje.value or dvostrano_otvaranje.value
+        )
+        desna_fronta.isLightBulbOn = bool(
+            not lijevo_otvaranje.value or dvostrano_otvaranje.value
+        )
     else:
         lijeva_fronta.isLightBulbOn = False
         desna_fronta.isLightBulbOn = False
