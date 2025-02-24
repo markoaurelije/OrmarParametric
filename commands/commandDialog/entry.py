@@ -1,7 +1,13 @@
 import adsk.core
 import os
 
-from ..commandDialog.utils import set_component_visibilit, set_user_parameters
+from ..commandDialog.utils import (
+    add_preset_comonent,
+    create_dialog,
+    load_preset,
+    set_component_visibility,
+    set_user_parameters_via_inputs,
+)
 from ..commandDialog.dialog_config import dialogItems
 from ...lib import fusionAddInUtils as futil
 from ... import config
@@ -80,76 +86,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f"{CMD_NAME} Command Created Event")
 
-    # Create a simple text box input.
-    # inputs.addTextBoxCommandInput("text_box", "Some Text", "Enter some text.", 1, False)
-
-    # Create a value input field and set the default using 1 unit of the default length unit.
-    defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-
-    # get the initial values (based on the userParamerters)
-    design = app.activeProduct
-    userParams = design.userParameters
-
-    #####  CREATING A DIALOG  #####
-    # default_value = adsk.core.ValueInput.createByString("60")
-    for dialogItem in dialogItems:
-        param = (
-            userParams.itemByName(dialogItem.get("paramName"))
-            if dialogItem.get("paramName")
-            else None
-        )
-
-        # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
-        inputs = args.command.commandInputs
-
-        if dialogItem.get("parrent"):
-            parent = inputs.itemById(dialogItem["parrent"])
-            # if the parent is not found, log the error and continue
-            if not parent:
-                futil.log(
-                    f"Parent {dialogItem['parrent']} not found.",
-                    adsk.core.LogLevels.WarningLogLevel,
-                )
-            inputs = parent.children if parent else inputs
-
-        if dialogItem["inputType"] == "value" and param:
-            input = inputs.addValueInput(
-                dialogItem["inputName"],
-                dialogItem["inputDescription"],
-                defaultLengthUnits,
-                adsk.core.ValueInput.createByReal(param.value),
-            )
-        elif dialogItem["inputType"] == "bool" and param:
-            input = inputs.addBoolValueInput(
-                dialogItem["inputName"],
-                dialogItem["inputDescription"],
-                True,
-                "",
-                bool(param.value),
-            )
-        elif dialogItem["inputType"] == "integer" and param:
-            input = inputs.addIntegerSpinnerCommandInput(
-                dialogItem["inputName"],
-                dialogItem["inputDescription"],
-                1,
-                100,
-                1,
-                int(param.value),
-            )
-        elif dialogItem["inputType"] == "group":
-            input = group = inputs.addGroupCommandInput(
-                dialogItem["inputName"], dialogItem["inputDescription"]
-            )
-            group.isExpanded = True
-        else:
-            input = None
-            futil.log(
-                f"Dialog item {dialogItem} not created.",
-                adsk.core.LogLevels.WarningLogLevel,
-            )
-
-        if input and dialogItem.get("tooltip"):
-            input.tooltipDescription = dialogItem["tooltip"]
+    create_dialog(args)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(
@@ -161,11 +98,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(
         args.command.executePreview, command_preview, local_handlers=local_handlers
     )
-    futil.add_handler(
-        args.command.validateInputs,
-        command_validate_input,
-        local_handlers=local_handlers,
-    )
+    # futil.add_handler(
+    #     args.command.validateInputs,
+    #     command_validate_input,
+    #     local_handlers=local_handlers,
+    # )
     futil.add_handler(
         args.command.destroy, command_destroy, local_handlers=local_handlers
     )
@@ -179,9 +116,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
     #  ******************************** Your code here ********************************
 
-    set_user_parameters(args)
-    set_component_visibilit()
+    set_user_parameters_via_inputs(args)
+    set_component_visibility()
     # ui.messageBox("Ormari su kreirani!")
+    # add_preset_comonent("dummy")
 
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
@@ -190,8 +128,8 @@ def command_preview(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     futil.log(f"{CMD_NAME} Command Preview Event")
     # I want to show the preview with the user parameters changed
-    set_user_parameters(args)
-    set_component_visibilit()
+    set_user_parameters_via_inputs(args)
+    set_component_visibility()
 
 
 # This event handler is called when the user changes anything in the command dialog
@@ -199,6 +137,16 @@ def command_preview(args: adsk.core.CommandEventArgs):
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     inputs = args.inputs
+
+    # General logging for debug.
+    futil.log(
+        f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}"
+    )
+
+    # if input changed is with id "presets" load the selected preset
+    if changed_input.id == "presets":
+        selected_preset = changed_input.selectedItem.name
+        load_preset(selected_preset, inputs)
 
     # if changed_input.id == "ukrute_enabled":
     #     # Get the value of the input
@@ -214,11 +162,6 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     #     if ukrute_enabled:
     #         ukrute_enabled.value = 1 if value else 0
     #         futil.log(f"Set the value of the user parameter to {ukrute_enabled.value}")
-
-    # General logging for debug.
-    futil.log(
-        f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}"
-    )
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog

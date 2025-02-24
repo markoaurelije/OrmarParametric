@@ -72,16 +72,10 @@ dialogItems: list[DialogItem] = [
     },
     # grupa gornja ploca
     {
-        "inputName": "grupa_gornja_ploca",
-        "inputType": "group",
-        "inputDescription": "Gornja Ploča",
-    },
-    {
         "paramName": "J1_gornja_ploca",
-        "inputName": "gornja_ploca_enabled",
-        "inputType": "bool",
+        "inputName": "grupa_gornja_ploca",
+        "inputType": "group_with_checkbox",
         "inputDescription": "Gornja Ploča",
-        "parrent": "grupa_gornja_ploca",
     },
     {
         "paramName": "J1_gornja_ploca_debljina",
@@ -99,16 +93,10 @@ dialogItems: list[DialogItem] = [
     },
     # grupa ukrute
     {
-        "inputName": "grupa_ukrute",
-        "inputType": "group",
-        "inputDescription": "Ukrute",
-    },
-    {
         "paramName": "J1_ukrute",
-        "inputName": "ukrute_enabled",
-        "inputType": "bool",
+        "inputName": "grupa_ukrute",
+        "inputType": "group_with_checkbox",
         "inputDescription": "Ukrute",
-        "parrent": "grupa_ukrute",
     },
     {
         "paramName": "J1_ukruta_širina",
@@ -154,22 +142,23 @@ dialogItems: list[DialogItem] = [
     },
     # grupa fronta
     {
-        "inputName": "grupa_fronta",
-        "inputType": "group",
-        "inputDescription": "Fronta",
-    },
-    {
         "paramName": "J1_fronta",
-        "inputName": "fronta_enabled",
-        "inputType": "bool",
+        "inputName": "grupa_fronta",
+        "inputType": "group_with_checkbox",
         "inputDescription": "Fronta",
-        "parrent": "grupa_fronta",
     },
     {
         "paramName": "J1_fronta_pokriva_donju_plocu",
         "inputName": "fronta_pokriva_donju_plocu",
         "inputType": "bool",
         "inputDescription": "Fronta pokriva donju ploču",
+        "parrent": "grupa_fronta",
+    },
+    {
+        "paramName": "J1_fronta_pokriva_gornju_plocu",
+        "inputName": "fronta_pokriva_gornju_plocu",
+        "inputType": "bool",
+        "inputDescription": "Fronta pokriva gornju ploču",
         "parrent": "grupa_fronta",
     },
     {
@@ -180,24 +169,17 @@ dialogItems: list[DialogItem] = [
         "parrent": "grupa_fronta",
     },
     {
-        "paramName": "J1_fronta_ofset",
+        "paramName": "J1_fronte_ofset",
         "inputName": "fronta_ofset",
         "inputType": "value",
         "inputDescription": "Ofset fronte",
         "parrent": "grupa_fronta",
     },
     {
-        "paramName": "J1_fronta_debljina",
+        "paramName": "J1_debljina_fronte",
         "inputName": "fronta_debljina",
         "inputType": "value",
         "inputDescription": "Debljina fronte",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronta_pokriva_gornju_plocu",
-        "inputName": "fronta_pokriva_gornju_plocu",
-        "inputType": "bool",
-        "inputDescription": "Fronta pokriva gornju ploču",
         "parrent": "grupa_fronta",
     },
     # grupa police
@@ -211,6 +193,13 @@ dialogItems: list[DialogItem] = [
         "inputName": "polica_upust",
         "inputType": "value",
         "inputDescription": "Upust police",
+        "parrent": "grupa_police",
+    },
+    {
+        "paramName": "J1_polica_suzenje",
+        "inputName": "polica_suzenje",
+        "inputType": "value",
+        "inputDescription": "Suženje police",
         "parrent": "grupa_police",
     },
     {
