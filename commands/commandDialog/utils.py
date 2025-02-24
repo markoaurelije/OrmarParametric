@@ -157,26 +157,50 @@ def set_component_visibility():
     gornja_ploca_presence = design.userParameters.itemByName("J1_gornja_ploca")
     ukrute_presence = design.userParameters.itemByName("J1_ukrute")
     fronta_presence = design.userParameters.itemByName("J1_fronta")
+    lijevo_otvaranje = design.userParameters.itemByName("J1_fronta_ljevo_otvaranje")
 
     # Get the target component (change index if needed)
     gornjaPlocaComp = None
     ukruteComp = None
-    frontaComp = None
+    lijeva_fronta = None
+    desna_fronta = None
     for occurrence in rootComp.occurrences:
+        # futil.log(f"Occurrence: {occurrence.name}")
         if occurrence.component.name == "gornja_ploca":
             gornjaPlocaComp = occurrence
         elif occurrence.component.name == "ukrute":
             ukruteComp = occurrence
-        elif occurrence.component.name == "fronta":
-            frontaComp = occurrence
-        if gornjaPlocaComp and ukruteComp:
+        elif occurrence.name == "fronta:1":
+            lijeva_fronta = occurrence
+        elif occurrence.name == "fronta:2":
+            desna_fronta = occurrence
+
+        if gornjaPlocaComp and ukruteComp and lijeva_fronta and desna_fronta:
             break
 
     if gornja_ploca_presence and gornjaPlocaComp:
         gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
 
     if fronta_presence:
-        frontaComp.isLightBulbOn = bool(fronta_presence.value)
+        lijeva_fronta.isLightBulbOn = bool(lijevo_otvaranje.value)
+        desna_fronta.isLightBulbOn = not bool(lijevo_otvaranje.value)
+    else:
+        lijeva_fronta.isLightBulbOn = False
+        desna_fronta.isLightBulbOn = False
+
+    # lijevi_pant = None
+    # desni_pant = None
+    # # find the Joint with name "vrata lijevo"
+    # for joint in rootComp.joints:
+    #     if joint.name == "vrata lijevo":
+    #         lijevi_pant = joint
+    #     elif joint.name == "vrata desno":
+    #         desni_pant = joint
+    #     if lijevi_pant and desni_pant:
+    #         break
+    # if lijevo_otvaranje:
+    #     lijevi_pant.isSuppressed = not bool(lijevo_otvaranje.value)
+    #     desni_pant.isSuppressed = bool(lijevo_otvaranje.value)
 
     app.log(
         f"Ukrute presence: {ukrute_presence and ukrute_presence.value}, ukruteComp: {ukruteComp and ukruteComp.name}"

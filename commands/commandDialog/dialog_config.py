@@ -182,6 +182,13 @@ dialogItems: list[DialogItem] = [
         "inputDescription": "Debljina fronte",
         "parrent": "grupa_fronta",
     },
+    {
+        "paramName": "J1_fronta_ljevo_otvaranje",
+        "inputName": "fronta_ljevo_otvaranje",
+        "inputType": "bool",
+        "inputDescription": "Ljevo otvaranje",
+        "parrent": "grupa_fronta",
+    },
     # grupa police
     {
         "inputName": "grupa_police",
