@@ -8,50 +8,26 @@ from ...lib import fusionAddInUtils as futil
 app = adsk.core.Application.get()
 
 
-def set_input_via_userparam(dialogItem: DialogItem, inputs: adsk.core.CommandInputs):
+def create_input(inputs: adsk.core.CommandInputs, dialogItem: DialogItem):
+    defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     design = app.activeProduct
     userParams = design.userParameters
-    defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     param = (
         userParams.itemByName(dialogItem.get("paramName"))
         if dialogItem.get("paramName")
         else None
     )
-
-    # find the input if it exists in inputs
-    input = inputs.itemById(dialogItem["inputName"])
-    if input:
-        if not param:
-            futil.log(
-                f"User parameter {dialogItem.get('paramName')} not found",
-                adsk.core.LogLevels.WarningLogLevel,
-            )
-            return
-        if dialogItem.get("inputType") in ["value"]:
-            input.value = param.value
-        elif dialogItem.get("inputType") == "integer":
-            input.value = int(param.value)
-        elif dialogItem.get("inputType") == "bool":
-            input.value = bool(param.value)
-        elif dialogItem.get("inputType") == "group_with_checkbox":
-            input.isEnabledCheckBoxChecked = bool(param.value)
-
-        futil.log(
-            f"Input {dialogItem['inputName']} updated.",
-            adsk.core.LogLevels.WarningLogLevel,
-        )
-        return
-
     if dialogItem.get("parrent"):
-        parent = inputs.itemById(dialogItem["parrent"])
+        parrent = inputs.itemById(dialogItem["parrent"])
         # if the parent is not found, log the error and continue
-        if not parent:
+        if not parrent:
             futil.log(
                 f"Parent {dialogItem['parrent']} not found.",
                 adsk.core.LogLevels.WarningLogLevel,
             )
-        inputs = parent.children if parent else inputs
+        inputs = parrent.children if parrent else inputs
 
+    futil.log(f"Creating input {dialogItem['inputName']}")
     if dialogItem["inputType"] == "value" and param:
         input = inputs.addValueInput(
             dialogItem["inputName"],
@@ -95,7 +71,49 @@ def set_input_via_userparam(dialogItem: DialogItem, inputs: adsk.core.CommandInp
         input.tooltipDescription = dialogItem["tooltip"]
 
 
-def create_dialog(args: adsk.core.CommandCreatedEventArgs):
+def set_input_via_userparam(dialogItem: DialogItem, inputs: adsk.core.CommandInputs):
+    if dialogItem is None:
+        futil.log(
+            f"Dialog item {dialogItem} not found",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+        return
+
+    design = app.activeProduct
+    userParams = design.userParameters
+    param = (
+        userParams.itemByName(dialogItem.get("paramName"))
+        if dialogItem.get("paramName")
+        else None
+    )
+    if param is None:
+        futil.log(
+            f"User parameter {dialogItem.get('paramName')} not found",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+        return
+
+    # find the input if it exists in inputs
+    input = inputs.itemById(dialogItem["inputName"])
+    if input:
+        futil.log(f"Updating input {dialogItem.get("paramName")}")
+        if dialogItem.get("inputType") in ["value"]:
+            input.value = param.value
+        elif dialogItem.get("inputType") == "integer":
+            input.value = int(param.value)
+        elif dialogItem.get("inputType") == "bool":
+            input.value = bool(param.value)
+        elif dialogItem.get("inputType") == "group_with_checkbox":
+            input.isEnabledCheckBoxChecked = bool(param.value)
+
+        futil.log(
+            f"Input {dialogItem['inputName']} updated.",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+        return
+
+
+def create_dialog(inputs: adsk.core.CommandInputs):
     # Create a value input field and set the default using 1 unit of the default length unit.
 
     #####  CREATING A DIALOG  #####
@@ -103,31 +121,29 @@ def create_dialog(args: adsk.core.CommandCreatedEventArgs):
     # get presets keys from presets key-value pairs
     presets_keys = presets.keys()
     # use addDropDownCommandInput to create a dropdown menu with presets
-    dropdown = args.command.commandInputs.addDropDownCommandInput(
+    dropdown = inputs.addDropDownCommandInput(
         "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
     )
     # add the presets to the dropdown menu
     for key in presets_keys:
         dropdown.listItems.add(key, False, "")
 
-    inputs = args.command.commandInputs
-    # default_value = adsk.core.ValueInput.createByString("60")
-    for dialogItem in dialogItems:
-        set_input_via_userparam(dialogItem, inputs)
+    for dialog_item in dialogItems:
+        create_input(inputs, dialog_item)
+        set_input_via_userparam(dialog_item, inputs)
 
 
-def set_user_parameters_via_inputs(args: adsk.core.CommandEventArgs):
-
+def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs):
     design = app.activeProduct
     userParams = design.userParameters
-    # Get a reference to your command's inputs.
-    inputs = args.command.commandInputs
 
     for paramInput in filter(lambda x: "paramName" in x, dialogItems):
         input_to_user_parameter(userParams, inputs, paramInput)
 
 
-def input_to_user_parameter(userParams, inputs, paramInput: DialogItem):
+def input_to_user_parameter(
+    userParams, inputs: adsk.core.CommandInputs, paramInput: DialogItem
+):
     param = userParams.itemByName(paramInput["paramName"])
     if not param:
         futil.log(
@@ -157,8 +173,8 @@ def set_component_visibility():
     gornja_ploca_presence = design.userParameters.itemByName("J1_gornja_ploca")
     ukrute_presence = design.userParameters.itemByName("J1_ukrute")
     fronta_presence = design.userParameters.itemByName("J1_fronta")
-    lijevo_otvaranje = design.userParameters.itemByName("J1_fronta_ljevo_otvaranje")
-    dvostrano_otvaranje = design.userParameters.itemByName("J1_fronta_ljeva_i_desna")
+    lijevo_otvaranje = design.userParameters.itemByName("J1_fronta_lijevo_otvaranje")
+    dvostrano_otvaranje = design.userParameters.itemByName("J1_fronta_lijeva_i_desna")
 
     # Get the target component (change index if needed)
     gornjaPlocaComp = None
@@ -193,23 +209,6 @@ def set_component_visibility():
         lijeva_fronta.isLightBulbOn = False
         desna_fronta.isLightBulbOn = False
 
-    # lijevi_pant = None
-    # desni_pant = None
-    # # find the Joint with name "vrata lijevo"
-    # for joint in rootComp.joints:
-    #     if joint.name == "vrata lijevo":
-    #         lijevi_pant = joint
-    #     elif joint.name == "vrata desno":
-    #         desni_pant = joint
-    #     if lijevi_pant and desni_pant:
-    #         break
-    # if lijevo_otvaranje:
-    #     lijevi_pant.isSuppressed = not bool(lijevo_otvaranje.value)
-    #     desni_pant.isSuppressed = bool(lijevo_otvaranje.value)
-
-    app.log(
-        f"Ukrute presence: {ukrute_presence and ukrute_presence.value}, ukruteComp: {ukruteComp and ukruteComp.name}"
-    )
     if ukrute_presence and ukruteComp:
         ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
 
@@ -274,10 +273,6 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
         set_user_parameter(input_param["paramName"], param["expression"])
         set_input_via_userparam(input_param, inputs)
 
-    # design = app.activeProduct
-    # userParams = design.userParameters
-    # for param in preset:
-    #     userParams.itemByName(param["paramName"]).expression = param["expression"]
     set_component_visibility()
 
 

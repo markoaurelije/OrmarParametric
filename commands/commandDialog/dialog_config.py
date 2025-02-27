@@ -1,6 +1,12 @@
 from typing import NotRequired, TypedDict
 
 
+class Dependency(TypedDict):
+    dependecy_param_name: str
+    dependecy_param_value: str
+    activation_value: str
+
+
 class DialogItem(TypedDict):
     paramName: NotRequired[str]
     inputName: str
@@ -8,6 +14,7 @@ class DialogItem(TypedDict):
     inputDescription: str
     parrent: NotRequired[str]
     tooltip: NotRequired[str]
+    dependencies: NotRequired[list[Dependency]]
 
 
 dialogItems: list[DialogItem] = [
@@ -55,6 +62,13 @@ dialogItems: list[DialogItem] = [
         "inputType": "bool",
         "inputDescription": "Bokovi do gornje ploče",
         "parrent": "grupa_bokovi",
+        "dependencies": [
+            {
+                "dependecy_param_name": "J1_ukrute",
+                "dependecy_param_value": "0",
+                "activation_value": False,
+            }
+        ],
     },
     {
         "paramName": "J1_bok_lijevo_debljina",
@@ -183,15 +197,15 @@ dialogItems: list[DialogItem] = [
         "parrent": "grupa_fronta",
     },
     {
-        "paramName": "J1_fronta_ljevo_otvaranje",
-        "inputName": "fronta_ljevo_otvaranje",
+        "paramName": "J1_fronta_lijevo_otvaranje",
+        "inputName": "fronta_lijevo_otvaranje",
         "inputType": "bool",
-        "inputDescription": "Ljevo otvaranje",
+        "inputDescription": "Lijevo otvaranje",
         "parrent": "grupa_fronta",
     },
     {
-        "paramName": "J1_fronta_ljeva_i_desna",
-        "inputName": "fronta_ljeva_i_desna",
+        "paramName": "J1_fronta_lijeva_i_desna",
+        "inputName": "fronta_lijeva_i_desna",
         "inputType": "bool",
         "inputDescription": "Dvostrano otvaranje",
         "parrent": "grupa_fronta",
