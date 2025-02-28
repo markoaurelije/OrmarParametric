@@ -1,240 +1,245 @@
-from typing import NotRequired, TypedDict
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, NotRequired, Optional, TypedDict
 
 
-class Dependency(TypedDict):
-    dependecy_param_name: str
-    dependecy_param_value: str
-    activation_value: str
+@dataclass
+class Dependency:
+    name: str
+    value: str
+    triggerring_value: str
 
 
-class DialogItem(TypedDict):
-    paramName: NotRequired[str]
-    inputName: str
-    inputType: str
-    inputDescription: str
-    parrent: NotRequired[str]
-    tooltip: NotRequired[str]
-    dependencies: NotRequired[list[Dependency]]
+class InputType(Enum):
+    VALUE = "value"
+    BOOL = "bool"
+    INTEGER = "integer"
+    GROUP = "group"
+    GROUP_WITH_CHECKBOX = "group_with_checkbox"
+    PRESETS = "presets"
 
 
-dialogItems: list[DialogItem] = [
-    # global
-    {
-        "paramName": "J1_sirina",
-        "inputName": "ukupna_sirina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Širina",
-    },
-    {
-        "paramName": "J1_dubina",
-        "inputName": "ukupna_dubina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Dubina",
-    },
-    {
-        "paramName": "J1_visina",
-        "inputName": "ukupna_visina",
-        "inputType": "value",
-        "inputDescription": "Ukupna Visina",
-    },
-    {
-        "paramName": "J1_donja_ploca_debljina",
-        "inputName": "donja_ploca_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina donje ploče",
-    },
-    # group bokovi
-    {
-        "inputName": "grupa_bokovi",
-        "inputType": "group",
-        "inputDescription": "Bokovi",
-    },
-    {
-        "paramName": "J1_bokovi_na_donju_plocu",
-        "inputName": "bokovi_na_donju_plocu",
-        "inputType": "bool",
-        "inputDescription": "Bokovi na donju ploču",
-        "parrent": "grupa_bokovi",
-    },
-    {
-        "paramName": "J1_bokovi_do_gornje_ploce",
-        "inputName": "bokovi_do_gornje_ploce",
-        "inputType": "bool",
-        "inputDescription": "Bokovi do gornje ploče",
-        "parrent": "grupa_bokovi",
-        "dependencies": [
-            {
-                "dependecy_param_name": "J1_ukrute",
-                "dependecy_param_value": "0",
-                "activation_value": False,
-            }
+@dataclass
+class InputItem:
+    name: str
+    type: InputType
+    description: str
+    user_param: Optional[str] = None
+    parent: Optional[str] = None
+    tooltip: Optional[str] = None
+    dependencies: Optional[List[Dependency]] = field(default_factory=list)
+
+
+input_items: list[InputItem] = [
+    InputItem(
+        name="ukupna_sirina",
+        type=InputType.VALUE,
+        description="Ukupna Širina",
+        user_param="J1_sirina",
+    ),
+    InputItem(
+        name="ukupna_dubina",
+        type=InputType.VALUE,
+        description="Ukupna Dubina",
+        user_param="J1_dubina",
+    ),
+    InputItem(
+        name="ukupna_visina",
+        type=InputType.VALUE,
+        description="Ukupna Visina",
+        user_param="J1_visina",
+    ),
+    InputItem(
+        name="donja_ploca_debljina",
+        type=InputType.VALUE,
+        description="Debljina donje ploče",
+        user_param="J1_donja_ploca_debljina",
+    ),
+    InputItem(
+        name="grupa_bokovi",
+        type=InputType.GROUP,
+        description="Bokovi",
+    ),
+    InputItem(
+        name="bokovi_na_donju_plocu",
+        type=InputType.BOOL,
+        description="Bokovi na donju ploču",
+        user_param="J1_bokovi_na_donju_plocu",
+        parent="grupa_bokovi",
+    ),
+    InputItem(
+        name="bokovi_do_gornje_ploce",
+        type=InputType.BOOL,
+        description="Bokovi do gornje ploče",
+        user_param="J1_bokovi_do_gornje_ploce",
+        parent="grupa_bokovi",
+        dependencies=[
+            Dependency(
+                name="J1_ukrute",
+                value="0",
+                triggerring_value=False,
+            )
         ],
-    },
-    {
-        "paramName": "J1_bok_lijevo_debljina",
-        "inputName": "bok_lijevo_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina boka lijevo",
-        "parrent": "grupa_bokovi",
-    },
-    {
-        "paramName": "J1_bok_desno_debljina",
-        "inputName": "bok_desno_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina boka desno",
-        "parrent": "grupa_bokovi",
-    },
-    # grupa gornja ploca
-    {
-        "paramName": "J1_gornja_ploca",
-        "inputName": "grupa_gornja_ploca",
-        "inputType": "group_with_checkbox",
-        "inputDescription": "Gornja Ploča",
-    },
-    {
-        "paramName": "J1_gornja_ploca_debljina",
-        "inputName": "gornja_ploca_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina gornje ploče",
-        "parrent": "grupa_gornja_ploca",
-    },
-    {
-        "paramName": "J1_gornja_napust",
-        "inputName": "gornja_ploca_napust",
-        "inputType": "value",
-        "inputDescription": "Napust gornje ploče",
-        "parrent": "grupa_gornja_ploca",
-    },
-    # grupa ukrute
-    {
-        "paramName": "J1_ukrute",
-        "inputName": "grupa_ukrute",
-        "inputType": "group_with_checkbox",
-        "inputDescription": "Ukrute",
-    },
-    {
-        "paramName": "J1_ukruta_širina",
-        "inputName": "ukruta_sirina",
-        "inputType": "value",
-        "inputDescription": "Širina ukrute",
-        "parrent": "grupa_ukrute",
-    },
-    # group ledja
-    {
-        "inputName": "grupa_ledja",
-        "inputType": "group",
-        "inputDescription": "Ledja",
-    },
-    {
-        "paramName": "J1_leđa_debljina",
-        "inputName": "ledja_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina leđa",
-        "parrent": "grupa_ledja",
-    },
-    {
-        "paramName": "J1_leđa_ofset",
-        "inputName": "ledja_ofset",
-        "inputType": "value",
-        "inputDescription": "Ofset leđa",
-        "parrent": "grupa_ledja",
-    },
-    {
-        "paramName": "J1_leđa_upust",
-        "inputName": "ledja_upust",
-        "inputType": "value",
-        "inputDescription": "Upust leđa",
-        "parrent": "grupa_ledja",
-        "tooltip": "Za kuhinjske visece elemente upust je 15mm od kraja ledja, upisati 15+J1_leđa_debljina",
-    },
-    {
-        "paramName": "J1_leđa_dubina_slota_u_bokovima",
-        "inputName": "ledja_dubina_slota_u_bokovima",
-        "inputType": "value",
-        "inputDescription": "Dubina slota u bokovima",
-        "parrent": "grupa_ledja",
-    },
-    # grupa fronta
-    {
-        "paramName": "J1_fronta",
-        "inputName": "grupa_fronta",
-        "inputType": "group_with_checkbox",
-        "inputDescription": "Fronta",
-    },
-    {
-        "paramName": "J1_fronta_pokriva_donju_plocu",
-        "inputName": "fronta_pokriva_donju_plocu",
-        "inputType": "bool",
-        "inputDescription": "Fronta pokriva donju ploču",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronta_pokriva_gornju_plocu",
-        "inputName": "fronta_pokriva_gornju_plocu",
-        "inputType": "bool",
-        "inputDescription": "Fronta pokriva gornju ploču",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronta_unutarnje_pokrivanje",
-        "inputName": "fronta_unutarnje_pokrivanje",
-        "inputType": "bool",
-        "inputDescription": "Unutarnje pokrivanje",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronte_ofset",
-        "inputName": "fronta_ofset",
-        "inputType": "value",
-        "inputDescription": "Ofset fronte",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_debljina_fronte",
-        "inputName": "fronta_debljina",
-        "inputType": "value",
-        "inputDescription": "Debljina fronte",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronta_lijevo_otvaranje",
-        "inputName": "fronta_lijevo_otvaranje",
-        "inputType": "bool",
-        "inputDescription": "Lijevo otvaranje",
-        "parrent": "grupa_fronta",
-    },
-    {
-        "paramName": "J1_fronta_lijeva_i_desna",
-        "inputName": "fronta_lijeva_i_desna",
-        "inputType": "bool",
-        "inputDescription": "Dvostrano otvaranje",
-        "parrent": "grupa_fronta",
-    },
-    # grupa police
-    {
-        "inputName": "grupa_police",
-        "inputType": "group",
-        "inputDescription": "Police",
-    },
-    {
-        "paramName": "J1_polica_upust",
-        "inputName": "polica_upust",
-        "inputType": "value",
-        "inputDescription": "Upust police",
-        "parrent": "grupa_police",
-    },
-    {
-        "paramName": "J1_polica_suzenje",
-        "inputName": "polica_suzenje",
-        "inputType": "value",
-        "inputDescription": "Suženje police",
-        "parrent": "grupa_police",
-    },
-    {
-        "paramName": "J1_broj_polica",
-        "inputName": "broj_polica",
-        "inputType": "integer",
-        "inputDescription": "Broj polica",
-        "parrent": "grupa_police",
-    },
+    ),
+    InputItem(
+        name="bok_lijevo_debljina",
+        type=InputType.VALUE,
+        description="Debljina boka lijevo",
+        user_param="J1_bok_lijevo_debljina",
+        parent="grupa_bokovi",
+    ),
+    InputItem(
+        name="bok_desno_debljina",
+        type=InputType.VALUE,
+        description="Debljina boka desno",
+        user_param="J1_bok_desno_debljina",
+        parent="grupa_bokovi",
+    ),
+    InputItem(
+        name="grupa_gornja_ploca",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Gornja Ploča",
+        user_param="J1_gornja_ploca",
+    ),
+    InputItem(
+        name="gornja_ploca_debljina",
+        type=InputType.VALUE,
+        description="Debljina gornje ploče",
+        user_param="J1_gornja_ploca_debljina",
+        parent="grupa_gornja_ploca",
+    ),
+    InputItem(
+        name="gornja_ploca_napust",
+        type=InputType.VALUE,
+        description="Napust gornje ploče",
+        user_param="J1_gornja_napust",
+        parent="grupa_gornja_ploca",
+    ),
+    InputItem(
+        name="grupa_ukrute",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Ukrute",
+        user_param="J1_ukrute",
+    ),
+    InputItem(
+        name="ukruta_sirina",
+        type=InputType.VALUE,
+        description="Širina ukrute",
+        user_param="J1_ukruta_širina",
+        parent="grupa_ukrute",
+    ),
+    InputItem(
+        name="grupa_ledja",
+        type=InputType.GROUP,
+        description="Ledja",
+    ),
+    InputItem(
+        name="ledja_debljina",
+        type=InputType.VALUE,
+        description="Debljina leđa",
+        user_param="J1_leđa_debljina",
+        parent="grupa_ledja",
+    ),
+    InputItem(
+        name="ledja_ofset",
+        type=InputType.VALUE,
+        description="Ofset leđa",
+        user_param="J1_leđa_ofset",
+        parent="grupa_ledja",
+    ),
+    InputItem(
+        name="ledja_upust",
+        type=InputType.VALUE,
+        description="Upust leđa",
+        user_param="J1_leđa_upust",
+        parent="grupa_ledja",
+    ),
+    InputItem(
+        name="ledja_dubina_slota_u_bokovima",
+        type=InputType.VALUE,
+        description="Dubina slota u bokovima",
+        user_param="J1_leđa_dubina_slota_u_bokovima",
+        parent="grupa_ledja",
+    ),
+    InputItem(
+        name="grupa_fronta",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Fronta",
+        user_param="J1_fronta",
+    ),
+    InputItem(
+        name="fronta_pokriva_donju_plocu",
+        type=InputType.BOOL,
+        description="Fronta pokriva donju ploču",
+        user_param="J1_fronta_pokriva_donju_plocu",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_pokriva_gornju_plocu",
+        type=InputType.BOOL,
+        description="Fronta pokriva gornju ploču",
+        user_param="J1_fronta_pokriva_gornju_plocu",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_unutarnje_pokrivanje",
+        type=InputType.BOOL,
+        description="Unutarnje pokrivanje",
+        user_param="J1_fronta_unutarnje_pokrivanje",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_ofset",
+        type=InputType.VALUE,
+        description="Ofset fronte",
+        user_param="J1_fronta_ofset",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_debljina",
+        type=InputType.VALUE,
+        description="Debljina fronte",
+        user_param="J1_fronta_debljina",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_lijevo_otvaranje",
+        type=InputType.BOOL,
+        description="Lijevo otvaranje",
+        user_param="J1_fronta_lijevo_otvaranje",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="fronta_lijeva_i_desna",
+        type=InputType.BOOL,
+        description="Dvostrano otvaranje",
+        user_param="J1_fronta_lijeva_i_desna",
+        parent="grupa_fronta",
+    ),
+    InputItem(
+        name="grupa_police",
+        type=InputType.GROUP,
+        description="Police",
+    ),
+    InputItem(
+        name="polica_upust",
+        type=InputType.VALUE,
+        description="Upust police",
+        user_param="J1_polica_upust",
+        parent="grupa_police",
+    ),
+    InputItem(
+        name="polica_suzenje",
+        type=InputType.VALUE,
+        description="Suženje police",
+        user_param="J1_polica_suzenje",
+        parent="grupa_police",
+    ),
+    InputItem(
+        name="broj_polica",
+        type=InputType.INTEGER,
+        description="Broj polica",
+        user_param="J1_broj_polica",
+        parent="grupa_police",
+    ),
 ]

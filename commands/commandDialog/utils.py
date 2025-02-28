@@ -1,113 +1,104 @@
 from typing import Optional
 import adsk.core
 import adsk.core, adsk.fusion, adsk.cam, traceback
-from ..commandDialog.dialog_config import DialogItem, dialogItems
+from ..commandDialog.dialog_config import InputItem, input_items, InputType
 from ..commandDialog.presets import presets
 from ...lib import fusionAddInUtils as futil
 
 app = adsk.core.Application.get()
 
 
-def create_input(inputs: adsk.core.CommandInputs, dialogItem: DialogItem):
+def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     design = app.activeProduct
     userParams = design.userParameters
     param = (
-        userParams.itemByName(dialogItem.get("paramName"))
-        if dialogItem.get("paramName")
-        else None
+        userParams.itemByName(input_item.user_param) if input_item.user_param else None
     )
-    if dialogItem.get("parrent"):
-        parrent = inputs.itemById(dialogItem["parrent"])
-        # if the parent is not found, log the error and continue
-        if not parrent:
-            futil.log(
-                f"Parent {dialogItem['parrent']} not found.",
-                adsk.core.LogLevels.WarningLogLevel,
-            )
-        inputs = parrent.children if parrent else inputs
 
-    futil.log(f"Creating input {dialogItem['inputName']}")
-    if dialogItem["inputType"] == "value" and param:
+    parent = inputs.itemById(input_item.parent) if input_item.parent else None
+    if input_item.parent and not parent:
+        futil.log(
+            f"Parent {input_item.parent} not found.",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+    inputs = parent.children if parent else inputs
+
+    futil.log(f"Creating input {input_item.name}")
+    if input_item.type == InputType.VALUE and param:
         input = inputs.addValueInput(
-            dialogItem["inputName"],
-            dialogItem["inputDescription"],
+            input_item.name,
+            input_item.description,
             defaultLengthUnits,
             adsk.core.ValueInput.createByReal(param.value),
         )
-    elif dialogItem["inputType"] == "bool" and param:
+    elif input_item.type == InputType.BOOL and param:
         input = inputs.addBoolValueInput(
-            dialogItem["inputName"],
-            dialogItem["inputDescription"],
+            input_item.name,
+            input_item.description,
             True,
             "",
             bool(param.value),
         )
-    elif dialogItem["inputType"] == "integer" and param:
+    elif input_item.type == InputType.INTEGER and param:
         input = inputs.addIntegerSpinnerCommandInput(
-            dialogItem["inputName"],
-            dialogItem["inputDescription"],
+            input_item.name,
+            input_item.description,
             1,
             100,
             1,
             int(param.value),
         )
-    elif "group" in dialogItem["inputType"]:
+    elif "group" in input_item.type.name:
         input = group = inputs.addGroupCommandInput(
-            dialogItem["inputName"], dialogItem["inputDescription"]
+            input_item.name, input_item.description
         )
         group.isExpanded = True
-        if "with_checkbox" in dialogItem["inputType"] and param:
+        if "with_checkbox" in input_item.type.name and param:
             group.isEnabledCheckBoxDisplayed = True
             group.isEnabledCheckBoxChecked = bool(param.value)
     else:
         input = None
         futil.log(
-            f"Dialog item {dialogItem} not created.",
+            f"Dialog item {input_item.name} not created.",
             adsk.core.LogLevels.WarningLogLevel,
         )
 
-    if input and dialogItem.get("tooltip"):
-        input.tooltipDescription = dialogItem["tooltip"]
+    if input and input_item.tooltip:
+        input.tooltipDescription = input_item.tooltip
 
 
-def set_input_via_userparam(dialogItem: DialogItem, inputs: adsk.core.CommandInputs):
-    if dialogItem is None:
-        futil.log(
-            f"Dialog item {dialogItem} not found",
-            adsk.core.LogLevels.WarningLogLevel,
-        )
+def set_input_via_userparam(input_item: InputItem, inputs: adsk.core.CommandInputs):
+    if input_item is None:
         return
 
     design = app.activeProduct
     userParams = design.userParameters
     param = (
-        userParams.itemByName(dialogItem.get("paramName"))
-        if dialogItem.get("paramName")
-        else None
+        userParams.itemByName(input_item.user_param) if input_item.user_param else None
     )
     if param is None:
         futil.log(
-            f"User parameter {dialogItem.get('paramName')} not found",
+            f"User parameter {input_item.user_param} not found",
             adsk.core.LogLevels.WarningLogLevel,
         )
         return
 
     # find the input if it exists in inputs
-    input = inputs.itemById(dialogItem["inputName"])
+    input = inputs.itemById(input_item.name)
     if input:
-        futil.log(f"Updating input {dialogItem.get("paramName")}")
-        if dialogItem.get("inputType") in ["value"]:
+        futil.log(f"Updating input {input_item.name}")
+        if input_item.type == InputType.VALUE:
             input.value = param.value
-        elif dialogItem.get("inputType") == "integer":
+        elif input_item.type == InputType.INTEGER:
             input.value = int(param.value)
-        elif dialogItem.get("inputType") == "bool":
+        elif input_item.type == InputType.BOOL:
             input.value = bool(param.value)
-        elif dialogItem.get("inputType") == "group_with_checkbox":
+        elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
             input.isEnabledCheckBoxChecked = bool(param.value)
 
         futil.log(
-            f"Input {dialogItem['inputName']} updated.",
+            f"Input {input_item.name} updated.",
             adsk.core.LogLevels.WarningLogLevel,
         )
         return
@@ -128,41 +119,39 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     for key in presets_keys:
         dropdown.listItems.add(key, False, "")
 
-    for dialog_item in dialogItems:
-        create_input(inputs, dialog_item)
-        set_input_via_userparam(dialog_item, inputs)
+    for input_item in input_items:
+        create_input(inputs, input_item)
+        set_input_via_userparam(input_item, inputs)
 
 
 def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs):
     design = app.activeProduct
     userParams = design.userParameters
 
-    for paramInput in filter(lambda x: "paramName" in x, dialogItems):
-        input_to_user_parameter(userParams, inputs, paramInput)
+    for input_with_user_param in filter(lambda x: x.user_param, input_items):
+        input_to_user_parameter(userParams, inputs, input_with_user_param)
 
 
 def input_to_user_parameter(
-    userParams, inputs: adsk.core.CommandInputs, paramInput: DialogItem
+    userParams, inputs: adsk.core.CommandInputs, input_item: InputItem
 ):
-    param = userParams.itemByName(paramInput["paramName"])
+    param = userParams.itemByName(input_item.user_param)
     if not param:
         futil.log(
-            f"User parameter {paramInput['paramName']} not found",
+            f"User parameter {input_item.user_param} not found",
             adsk.core.LogLevels.ErrorLogLevel,
         )
         return
-    if paramInput["inputType"] in "value":
-        param.expression = inputs.itemById(paramInput["inputName"]).expression
-    elif paramInput["inputType"] == "bool":
-        param.value = 1 if inputs.itemById(paramInput["inputName"]).value else 0
-    elif paramInput["inputType"] == "group_with_checkbox":
+    if input_item.type == InputType.VALUE:
+        param.expression = inputs.itemById(input_item.name).expression
+    elif input_item.type == InputType.BOOL:
+        param.value = 1 if inputs.itemById(input_item.name).value else 0
+    elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
         param.value = (
-            1
-            if inputs.itemById(paramInput["inputName"]).isEnabledCheckBoxChecked
-            else 0
+            1 if inputs.itemById(input_item.name).isEnabledCheckBoxChecked else 0
         )
-    elif paramInput["inputType"] == "integer":
-        param.expression = str(inputs.itemById(paramInput["inputName"]).value)
+    elif input_item.type == InputType.INTEGER:
+        param.expression = str(inputs.itemById(input_item.name).value)
 
 
 def set_component_visibility():
@@ -258,9 +247,7 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
     # set the input values to the preset values
     for param in preset:
         input_param = [
-            input
-            for input in dialogItems
-            if input.get("paramName") == param["paramName"]
+            input for input in input_items if input.user_param == param["paramName"]
         ]
         if not input_param:
             futil.log(
@@ -270,7 +257,7 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
             continue
         input_param = input_param[0]
 
-        set_user_parameter(input_param["paramName"], param["expression"])
+        set_user_parameter(input_param.user_param, param["expression"])
         set_input_via_userparam(input_param, inputs)
 
     set_component_visibility()
