@@ -8,6 +8,7 @@ class Dependency:
     name: str
     value: str
     triggerring_value: str
+    # conditions: list["Dependency"]
 
 
 class InputType(Enum):
@@ -61,25 +62,25 @@ input_items: list[InputItem] = [
         description="Bokovi",
     ),
     InputItem(
-        name="bokovi_na_donju_plocu",
+        name="bokovi_preko_donje_ploce",
         type=InputType.BOOL,
-        description="Bokovi na donju ploču",
-        user_param="J1_bokovi_na_donju_plocu",
+        description="Bokovi preko donje ploče",
+        user_param="J1_bokovi_preko_donje_ploce",
         parent="grupa_bokovi",
     ),
     InputItem(
-        name="bokovi_do_gornje_ploce",
+        name="bokovi_preko_gornje_ploce",
         type=InputType.BOOL,
-        description="Bokovi do gornje ploče",
-        user_param="J1_bokovi_do_gornje_ploce",
+        description="Bokovi preko gornje ploče",
+        user_param="J1_bokovi_preko_gornje_ploce",
         parent="grupa_bokovi",
-        dependencies=[
-            Dependency(
-                name="J1_ukrute",
-                value="0",
-                triggerring_value=False,
-            )
-        ],
+        # dependencies=[
+        #     Dependency(
+        #         name="grupa_ukrute",
+        #         value="0",
+        #         triggerring_value=True,
+        #     )
+        # ],
     ),
     InputItem(
         name="bok_lijevo_debljina",
@@ -100,6 +101,13 @@ input_items: list[InputItem] = [
         type=InputType.GROUP_WITH_CHECKBOX,
         description="Gornja Ploča",
         user_param="J1_gornja_ploca",
+        # dependencies=[
+        #     Dependency(
+        #         name="bokovi_preko_gornje_ploce",
+        #         value="1",
+        #         triggerring_value=False,
+        #     )
+        # ],
     ),
     InputItem(
         name="gornja_ploca_debljina",

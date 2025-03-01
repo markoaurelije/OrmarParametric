@@ -49,14 +49,12 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
             1,
             int(param.value),
         )
-    elif "group" in input_item.type.name:
-        input = group = inputs.addGroupCommandInput(
-            input_item.name, input_item.description
-        )
-        group.isExpanded = True
-        if "with_checkbox" in input_item.type.name and param:
-            group.isEnabledCheckBoxDisplayed = True
-            group.isEnabledCheckBoxChecked = bool(param.value)
+    elif "group" in input_item.type.value:
+        input = inputs.addGroupCommandInput(input_item.name, input_item.description)
+        input.isExpanded = True
+        if "with_checkbox" in input_item.type.value and param:
+            input.isEnabledCheckBoxDisplayed = True
+            input.isEnabledCheckBoxChecked = bool(param.value)
     else:
         input = None
         futil.log(

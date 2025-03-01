@@ -48,7 +48,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # inputs_manager = InputsManager(inputs)
 
             # Connect to the input changed event
-            onInputChanged = InputChangedHandler(None, inputs)
+            onInputChanged = InputChangedHandler(inputs)
             local_handlers.append(onInputChanged)
             cmd.inputChanged.add(onInputChanged)
 

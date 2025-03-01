@@ -16,12 +16,12 @@ kuhinja_viseci_element = [
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bokovi_na_donju_plocu",
-        "expression": "0",
+        "paramName": "J1_bokovi_preko_donje_ploce",
+        "expression": "1",
     },
     {
-        "paramName": "J1_bokovi_do_gornje_ploce",
-        "expression": "0",
+        "paramName": "J1_bokovi_preko_gornje_ploce",
+        "expression": "1",
     },
     {
         "paramName": "J1_bok_lijevo_debljina",
@@ -119,12 +119,12 @@ kuhinja_donji_element = [
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bokovi_na_donju_plocu",
-        "expression": "1",
+        "paramName": "J1_bokovi_preko_donje_ploce",
+        "expression": "0",
     },
     {
-        "paramName": "J1_bokovi_do_gornje_ploce",
-        "expression": "0",
+        "paramName": "J1_bokovi_preko_gornje_ploce",
+        "expression": "1",
     },
     {
         "paramName": "J1_bok_lijevo_debljina",
