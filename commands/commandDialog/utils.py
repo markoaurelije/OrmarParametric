@@ -174,9 +174,9 @@ def set_component_visibility():
             gornjaPlocaComp = occurrence
         elif occurrence.component.name == "ukrute":
             ukruteComp = occurrence
-        elif occurrence.name == "fronta:1":
+        elif occurrence.component.name == "fronta lijevo":
             lijeva_fronta = occurrence
-        elif occurrence.name == "fronta:2":
+        elif occurrence.component.name == "fronta desno":
             desna_fronta = occurrence
 
         if gornjaPlocaComp and ukruteComp and lijeva_fronta and desna_fronta:
