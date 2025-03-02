@@ -5,7 +5,6 @@ from .input_changed_handler import InputChangedHandler
 # from .command_destroy_handler import CommandDestroyHandler
 from .command_execute_handler import CommandExecuteHandler
 from .command_execute_preview_handler import CommandExecutePreviewHandler
-from ..inputs_manager import InputsManager
 from ....lib import fusionAddInUtils as futil
 
 local_handlers = []

@@ -8,15 +8,22 @@ from ...lib import fusionAddInUtils as futil
 app = adsk.core.Application.get()
 
 
-def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
+def create_input(
+    inputs: adsk.core.CommandInputs, input_item: InputItem, prefix: str = "J1_"
+):
+    input_item_name = prefix + input_item.name
+    futil.log(f"Creating input {input_item_name}")
+    design = adsk.fusion.Design.cast(app.activeProduct)
+
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-    design = app.activeProduct
-    userParams = design.userParameters
+    user_param_name = prefix + input_item.name if input_item.name else None
     param = (
-        userParams.itemByName(input_item.user_param) if input_item.user_param else None
+        design.userParameters.itemByName(user_param_name) if user_param_name else None
     )
 
-    parent = inputs.itemById(input_item.parent) if input_item.parent else None
+    futil.log(f"Parent: {input_item.parent}")
+
+    parent = inputs.itemById(prefix + input_item.parent) if input_item.parent else None
     if input_item.parent and not parent:
         futil.log(
             f"Parent {input_item.parent} not found.",
@@ -24,17 +31,18 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
         )
     inputs = parent.children if parent else inputs
 
-    futil.log(f"Creating input {input_item.name}")
     if input_item.type == InputType.VALUE and param:
+        futil.log(f"Creating input {input_item_name}, step2")
         input = inputs.addValueInput(
-            input_item.name,
+            input_item_name,
             input_item.description,
             defaultLengthUnits,
             adsk.core.ValueInput.createByReal(param.value),
         )
+        futil.log(f"Creating input {input_item_name}, step3")
     elif input_item.type == InputType.BOOL and param:
         input = inputs.addBoolValueInput(
-            input_item.name,
+            input_item_name,
             input_item.description,
             True,
             "",
@@ -42,7 +50,7 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
         )
     elif input_item.type == InputType.INTEGER and param:
         input = inputs.addIntegerSpinnerCommandInput(
-            input_item.name,
+            input_item_name,
             input_item.description,
             1,
             100,
@@ -50,7 +58,7 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
             int(param.value),
         )
     elif "group" in input_item.type.value:
-        input = inputs.addGroupCommandInput(input_item.name, input_item.description)
+        input = inputs.addGroupCommandInput(input_item_name, input_item.description)
         input.isExpanded = True
         if "with_checkbox" in input_item.type.value and param:
             input.isEnabledCheckBoxDisplayed = True
@@ -58,7 +66,7 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
     else:
         input = None
         futil.log(
-            f"Dialog item {input_item.name} not created.",
+            f"Dialog item {prefix + input_item.name} not created.",
             adsk.core.LogLevels.WarningLogLevel,
         )
 
@@ -66,18 +74,22 @@ def create_input(inputs: adsk.core.CommandInputs, input_item: InputItem):
         input.tooltipDescription = input_item.tooltip
 
 
-def set_input_via_userparam(input_item: InputItem, inputs: adsk.core.CommandInputs):
+def set_input_via_userparam(
+    input_item: InputItem, inputs: adsk.core.CommandInputs, prefix: str = "J1_"
+):
     if input_item is None:
         return
 
-    design = app.activeProduct
-    userParams = design.userParameters
+    futil.log(f"Setting input {input_item.name}")
+
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    user_param_name = prefix + input_item.name if input_item.name else None
     param = (
-        userParams.itemByName(input_item.user_param) if input_item.user_param else None
+        design.userParameters.itemByName(user_param_name) if user_param_name else None
     )
     if param is None:
         futil.log(
-            f"User parameter {input_item.user_param} not found",
+            f"User parameter {user_param_name} not found.",
             adsk.core.LogLevels.WarningLogLevel,
         )
         return
@@ -106,105 +118,188 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     # Create a value input field and set the default using 1 unit of the default length unit.
 
     #####  CREATING A DIALOG  #####
-
-    # get presets keys from presets key-value pairs
-    presets_keys = presets.keys()
-    # use addDropDownCommandInput to create a dropdown menu with presets
-    dropdown = inputs.addDropDownCommandInput(
-        "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
+    inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
+    inputs.addTextBoxCommandInput(
+        "newComponentName", "Ime novog ormara", "O1", 1, False
     )
-    # add the presets to the dropdown menu
-    for key in presets_keys:
-        dropdown.listItems.add(key, False, "")
 
-    for input_item in input_items:
-        create_input(inputs, input_item)
-        set_input_via_userparam(input_item, inputs)
+    prefixis = get_prefixes()
+    for prefix in prefixis:
+        futil.log(f"Adding tab: {prefix}")
+        tab_input = inputs.addTabCommandInput(prefix, prefix)
+        dropdown = tab_input.children.addDropDownCommandInput(
+            "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
+        )
+        for key in presets.keys():
+            dropdown.listItems.add(key, False, "")
+
+        for input_item in input_items:
+            # futil.log(f"Adding input: {input_item.name}")
+            create_input(tab_input.children, input_item, prefix)
+            set_input_via_userparam(input_item, tab_input.children, prefix)
 
 
-def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs):
-    design = app.activeProduct
-    userParams = design.userParameters
+def get_prefixes():
+    input_items_without_groups = [
+        item for item in input_items if item.type != InputType.GROUP
+    ]
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    userParams = [param.name for param in design.userParameters]
+    param_base_name = input_items_without_groups[0].name
+    prefixis = {
+        param.split(param_base_name)[0]
+        for param in userParams
+        if param.endswith(param_base_name)
+    }
+    futil.log(f"initial prefixes: {prefixis}")
 
-    for input_with_user_param in filter(lambda x: x.user_param, input_items):
-        input_to_user_parameter(userParams, inputs, input_with_user_param)
+    for input_item in input_items_without_groups[1:]:
+        if input_item.name is None:
+            continue
+        param_base_name = input_item.name
+        matching_user_params = {
+            param.split(param_base_name)[0]
+            for param in userParams
+            if param.endswith(param_base_name)
+        }
+        # futil.log(f"matching prefixes: {matching_user_params} for {input_item.name}")
+        prefixis.intersection_update(matching_user_params)
+        if not prefixis:
+            break
+
+    prefixis = sorted(prefixis)
+    futil.log(f"resulting prefixes: {prefixis}")
+    return prefixis
+
+    # dropdown = inputs.addDropDownCommandInput(
+    #         "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
+    #     )
+    # for key in presets.keys():
+    #     dropdown.listItems.add(key, False, "")
+
+    # for input_item in input_items:
+    #     create_input(inputs, input_item)
+    #     set_input_via_userparam(input_item, inputs)
+
+
+def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs, prefix: str):
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    for input_with_user_param in filter(
+        lambda x: x.type != InputType.GROUP, input_items
+    ):
+        input_to_user_parameter(
+            design.userParameters, inputs, input_with_user_param, prefix
+        )
 
 
 def input_to_user_parameter(
-    userParams, inputs: adsk.core.CommandInputs, input_item: InputItem
+    userParams,
+    inputs: adsk.core.CommandInputs,
+    input_item: InputItem,
+    prefix: str,
 ):
-    param = userParams.itemByName(input_item.user_param)
+    user_param_name = prefix + input_item.name
+    param = userParams.itemByName(user_param_name)
     if not param:
         futil.log(
-            f"User parameter {input_item.user_param} not found",
+            f"User parameter {user_param_name} not found",
             adsk.core.LogLevels.ErrorLogLevel,
         )
         return
+
+    # futil.log(f"Setting user parameter {user_param_name}")
     if input_item.type == InputType.VALUE:
-        param.expression = inputs.itemById(input_item.name).expression
+        param.expression = inputs.itemById(user_param_name).expression
     elif input_item.type == InputType.BOOL:
-        param.value = 1 if inputs.itemById(input_item.name).value else 0
+        param.value = 1 if inputs.itemById(user_param_name).value else 0
     elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
         param.value = (
-            1 if inputs.itemById(input_item.name).isEnabledCheckBoxChecked else 0
+            1 if inputs.itemById(user_param_name).isEnabledCheckBoxChecked else 0
         )
     elif input_item.type == InputType.INTEGER:
-        param.expression = str(inputs.itemById(input_item.name).value)
+        param.expression = str(inputs.itemById(user_param_name).value)
 
 
 def set_component_visibility():
-    app = adsk.core.Application.get()
-    design = app.activeProduct
-    rootComp = design.rootComponent
+    design = adsk.fusion.Design.cast(app.activeProduct)
 
-    gornja_ploca_presence = design.userParameters.itemByName("J1_gornja_ploca")
-    ukrute_presence = design.userParameters.itemByName("J1_ukrute")
-    fronta_presence = design.userParameters.itemByName("J1_fronta")
-    lijevo_otvaranje = design.userParameters.itemByName("J1_fronta_lijevo_otvaranje")
-    dvostrano_otvaranje = design.userParameters.itemByName("J1_fronta_lijeva_i_desna")
+    for prefix in get_prefixes():
+        futil.log(f"Setting visibility for prefix: {prefix}")
 
-    # Get the target component (change index if needed)
-    gornjaPlocaComp = None
-    ukruteComp = None
-    lijeva_fronta = None
-    desna_fronta = None
-    for occurrence in rootComp.occurrences:
-        # futil.log(f"Occurrence: {occurrence.name}")
-        if occurrence.component.name == "gornja_ploca":
-            gornjaPlocaComp = occurrence
-        elif occurrence.component.name == "ukrute":
-            ukruteComp = occurrence
-        elif occurrence.component.name == "fronta lijevo":
-            lijeva_fronta = occurrence
-        elif occurrence.component.name == "fronta desno":
-            desna_fronta = occurrence
-
-        if gornjaPlocaComp and ukruteComp and lijeva_fronta and desna_fronta:
-            break
-
-    if gornja_ploca_presence and gornjaPlocaComp:
-        gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
-
-    if fronta_presence:
-        lijeva_fronta.isLightBulbOn = bool(
-            lijevo_otvaranje.value or dvostrano_otvaranje.value
+        gornja_ploca_presence = design.userParameters.itemByName(
+            prefix + "gornja_ploca"
         )
-        desna_fronta.isLightBulbOn = bool(
-            not lijevo_otvaranje.value or dvostrano_otvaranje.value
+        ukrute_presence = design.userParameters.itemByName(prefix + "ukrute")
+        fronta_presence = design.userParameters.itemByName(prefix + "fronta")
+        lijevo_otvaranje = design.userParameters.itemByName(
+            prefix + "fronta_lijevo_otvaranje"
         )
-    else:
-        lijeva_fronta.isLightBulbOn = False
-        desna_fronta.isLightBulbOn = False
+        dvostrano_otvaranje = design.userParameters.itemByName(
+            prefix + "fronta_lijeva_i_desna"
+        )
 
-    if ukrute_presence and ukruteComp:
-        ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
+        futil.log(f"Finished getting user parameters")
+        # Get the target component (change index if needed)
+        gornjaPlocaComp = None
+        ukruteComp = None
+        lijevaFrontaComp = None
+        desnaFrontaComp = None
+
+        rootComp = next(
+            (
+                comp.component
+                for comp in design.rootComponent.occurrences
+                if comp.component.name == prefix.rstrip("_")
+            ),
+            None,
+        )
+        if rootComp is None:
+            futil.log(
+                f"Component {prefix.rstrip("_")} not found. Availible components: {[comp.component.name for comp in design.rootComponent.occurrences]}"
+            )
+            rootComp = design.rootComponent
+
+        futil.log(f"Root component: {rootComp.name}")
+        # futil.log(
+        #     f"Root component occurrences: {[comp.component.name for comp in rootComp.occurrences]}"
+        # )
+        for occurrence in rootComp.occurrences:
+            # futil.log(f"Occurrence: {occurrence.name}")
+            if occurrence.component.name == "gornja_ploca":
+                gornjaPlocaComp = occurrence
+            elif occurrence.component.name == "ukrute":
+                ukruteComp = occurrence
+            elif occurrence.component.name == "fronta lijevo":
+                lijevaFrontaComp = occurrence
+            elif occurrence.component.name == "fronta desno":
+                desnaFrontaComp = occurrence
+
+            if gornjaPlocaComp and ukruteComp and lijevaFrontaComp and desnaFrontaComp:
+                break
+
+        if gornja_ploca_presence and gornjaPlocaComp:
+            gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
+
+        if lijevaFrontaComp:
+            lijevaFrontaComp.isLightBulbOn = bool(
+                fronta_presence and lijevo_otvaranje.value or dvostrano_otvaranje.value
+            )
+        if desnaFrontaComp:
+            desnaFrontaComp.isLightBulbOn = bool(
+                fronta_presence
+                and not lijevo_otvaranje.value
+                or dvostrano_otvaranje.value
+            )
+
+        if ukrute_presence and ukruteComp:
+            ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
 
 
 def get_design_by_name(
     design_name: str,
     project_name: Optional[str] = None,
     folder_name: Optional[str] = None,
-) -> Optional[adsk.fusion.Design]:
+) -> Optional[adsk.core.DataFile]:
     try:
         app = adsk.core.Application.get()
         if not app:
@@ -236,7 +331,7 @@ def get_design_by_name(
         return None
 
 
-def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
+def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str = "J1_"):
     preset = presets.get(preset_name)
     if not preset:
         futil.log("Preset not found", adsk.core.LogLevels.ErrorLogLevel)
@@ -245,7 +340,9 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
     # set the input values to the preset values
     for param in preset:
         input_param = [
-            input for input in input_items if input.user_param == param["paramName"]
+            input
+            for input in input_items
+            if f"{prefix}{input.name}" == param["paramName"]
         ]
         if not input_param:
             futil.log(
@@ -255,32 +352,60 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs):
             continue
         input_param = input_param[0]
 
-        set_user_parameter(input_param.user_param, param["expression"])
+        set_user_parameter(input_param.name, param["expression"])
         set_input_via_userparam(input_param, inputs)
 
     set_component_visibility()
 
 
-def add_preset_comonent(preset_name: str):
-    base_design = get_design_by_name("J1", "Ormari - parametric")
-    if not base_design:
-        futil.log("Base design not found", adsk.core.LogLevels.ErrorLogLevel)
+def add_parametric_component(name: str, create_new_design: bool = False):
+    base_data_file = get_design_by_name("J1", "Ormari - parametric")
+    if not base_data_file:
+        app.userInterface.messageBox("Base design not found", "Erorr")
         return
+    futil.log(f"Base design found: {base_data_file.name}")
 
-    # open new design and insert the bae design
-    new_design = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
-    new_design.activate()
+    # open new design and insert the base design
+    if create_new_design:
+        target_doc = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+    else:
+        # target data_file
+        target_data_file = get_design_by_name("test", "Ormari - parametric")
+        if not target_data_file:
+            app.userInterface.messageBox("Target design not found", "Erorr")
+            return
+        # open and activate a data file
+        futil.log(f"Opening target document: {target_data_file.name}")
+        target_doc = app.documents.open(target_data_file)
+
+    futil.log(f"Activating")
+    target_doc.activate()
+    futil.log(f"Target document activated: {target_doc.name}")
 
     design = adsk.fusion.Design.cast(app.activeProduct)
-    design.rootComponent.occurrences.addByInsert(
-        base_design, adsk.core.Matrix3D.create(), False
+    # make sure "design" is not a base design, compare by name
+    if design.rootComponent.name == "J1":
+        app.userInterface.messageBox(
+            "Current design is the base design. Open new desing, and try again.",
+            "Erorr",
+        )
+        return
+
+    futil.log(f"Current design: {design.rootComponent.name}")
+    occurrence = design.rootComponent.occurrences.addByInsert(
+        base_data_file, adsk.core.Matrix3D.create(), False
     )
+    occurrence.component.name = name
+    # rename all user parameters that start with J1_* with the <name>_
+    for user_param in design.userParameters:
+        if user_param.name.startswith("J1_"):
+            user_param.name = name + "_" + user_param.name[3:]
+    futil.log(f"New component inserted: {occurrence.component.name}")
 
 
 def set_user_parameter(param_name: str, value: str):
-    design = app.activeProduct
-    userParams = design.userParameters
-    param = userParams.itemByName(param_name)
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    param = design.userParameters.itemByName(param_name)
     if param:
         param.expression = value
     else:

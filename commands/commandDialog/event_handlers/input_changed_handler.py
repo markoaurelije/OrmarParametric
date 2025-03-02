@@ -6,7 +6,12 @@ import time
 from ....lib import fusionAddInUtils as futil
 
 # from ..inputs_manager import InputsManager
-from ..utils import load_preset, set_input_via_userparam, set_user_parameter
+from ..utils import (
+    add_parametric_component,
+    load_preset,
+    set_input_via_userparam,
+    set_user_parameter,
+)
 from ..dialog_config import InputType, input_items
 
 
@@ -34,6 +39,16 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             if changed_input.id == "presets":
                 selected_preset = changed_input.selectedItem.name
                 load_preset(selected_preset, self.inputs)
+                return
+            elif changed_input.id == "addPresetButton":
+                # get the input valur of 'newComponentName' input
+                new_name = next(
+                    (input for input in self.inputs if input.id == "newComponentName"),
+                    None,
+                )
+
+                add_parametric_component(new_name.text if new_name else "Ox")
+                return
 
             # track time execution of this part of code, start timer here
             start_time = time.time()
@@ -59,7 +74,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                                 futil.log(
                                     f"Changing dependency input: {dependency.name} to {dependency.value}"
                                 )
-                                set_user_parameter(d_input.user_param, dependency.value)
+                                set_user_parameter(d_input.name, dependency.value)
                                 set_input_via_userparam(d_input, self.inputs)
                     break
             # track time execution of this part of code, end timer here

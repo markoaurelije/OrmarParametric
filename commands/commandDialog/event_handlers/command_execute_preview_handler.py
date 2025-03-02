@@ -1,6 +1,7 @@
 import adsk, adsk.core
 from ....lib import fusionAddInUtils as futil
 from ..utils import (
+    get_prefixes,
     set_component_visibility,
     set_user_parameters_via_inputs,
 )
@@ -19,5 +20,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
         futil.log(f"Command Execute Preview Event")
 
-        set_user_parameters_via_inputs(args.command.commandInputs)
-        set_component_visibility()
+        prefixis = get_prefixes()
+        for prefix in prefixis:
+            set_user_parameters_via_inputs(args.command.commandInputs, prefix)
+            set_component_visibility()

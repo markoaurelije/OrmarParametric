@@ -1,206 +1,206 @@
 kuhinja_viseci_element = [
     {
-        "paramName": "J1_sirina",
+        "paramName": "sirina",
         "expression": "60.00 cm",
     },
     {
-        "paramName": "J1_dubina",
+        "paramName": "dubina",
         "expression": "30.0 cm",
     },
     {
-        "paramName": "J1_visina",
+        "paramName": "visina",
         "expression": "50.0 cm",
     },
     {
-        "paramName": "J1_donja_ploca_debljina",
+        "paramName": "donja_ploca_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bokovi_preko_donje_ploce",
+        "paramName": "bokovi_preko_donje_ploce",
         "expression": "1",
     },
     {
-        "paramName": "J1_bokovi_preko_gornje_ploce",
+        "paramName": "bokovi_preko_gornje_ploce",
         "expression": "1",
     },
     {
-        "paramName": "J1_bok_lijevo_debljina",
+        "paramName": "bok_lijevo_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bok_desno_debljina",
+        "paramName": "bok_desno_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_gornja_ploca",
+        "paramName": "gornja_ploca",
         "expression": "1",
     },
     {
-        "paramName": "J1_gornja_ploca_debljina",
+        "paramName": "gornja_ploca_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_gornja_napust",
+        "paramName": "gornja_napust",
         "expression": "0.0 mm",
     },
     {
-        "paramName": "J1_ukrute",
+        "paramName": "ukrute",
         "expression": "0",
     },
     {
-        "paramName": "J1_ukruta_širina",
+        "paramName": "ukruta_širina",
         "expression": "80.0 mm",
     },
     {
-        "paramName": "J1_leđa_debljina",
+        "paramName": "leđa_debljina",
         "expression": "3.0 mm",
     },
     {
-        "paramName": "J1_leđa_ofset",
+        "paramName": "leđa_ofset",
         "expression": "1.0 mm",
     },
-    {"paramName": "J1_leđa_upust", "expression": "18 mm"},
+    {"paramName": "leđa_upust", "expression": "18 mm"},
     {
-        "paramName": "J1_leđa_dubina_slota_u_bokovima",
+        "paramName": "leđa_dubina_slota_u_bokovima",
         "expression": "10.0 mm",
     },
     {
-        "paramName": "J1_fronta",
+        "paramName": "fronta",
         "expression": "1",
     },
     {
-        "paramName": "J1_fronta_pokriva_donju_plocu",
+        "paramName": "fronta_pokriva_donju_plocu",
         "expression": "1",
     },
     {
-        "paramName": "J1_fronta_unutarnje_pokrivanje",
+        "paramName": "fronta_unutarnje_pokrivanje",
         "expression": "0",
     },
     {
-        "paramName": "J1_fronta_ofset",
+        "paramName": "fronta_ofset",
         "expression": "2.0 mm",
     },
     {
-        "paramName": "J1_fronta_debljina",
+        "paramName": "fronta_debljina",
         "expression": "19.0 mm",
     },
     {
-        "paramName": "J1_fronta_pokriva_gornju_plocu",
+        "paramName": "fronta_pokriva_gornju_plocu",
         "expression": "1",
     },
     {
-        "paramName": "J1_polica_upust",
+        "paramName": "polica_upust",
         "expression": "20.0 mm",
     },
     {
-        "paramName": "J1_polica_suzenje",
+        "paramName": "polica_suzenje",
         "expression": "1.0 mm",
     },
     {
-        "paramName": "J1_broj_polica",
+        "paramName": "broj_polica",
         "expression": "2",
     },
 ]
 kuhinja_donji_element = [
     {
-        "paramName": "J1_sirina",
+        "paramName": "sirina",
         "expression": "60.00 cm",
     },
     {
-        "paramName": "J1_dubina",
+        "paramName": "dubina",
         "expression": "60.0 cm",
     },
     {
-        "paramName": "J1_visina",
+        "paramName": "visina",
         "expression": "78.0 cm",
     },
     {
-        "paramName": "J1_donja_ploca_debljina",
+        "paramName": "donja_ploca_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bokovi_preko_donje_ploce",
+        "paramName": "bokovi_preko_donje_ploce",
         "expression": "0",
     },
     {
-        "paramName": "J1_bokovi_preko_gornje_ploce",
+        "paramName": "bokovi_preko_gornje_ploce",
         "expression": "1",
     },
     {
-        "paramName": "J1_bok_lijevo_debljina",
+        "paramName": "bok_lijevo_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_bok_desno_debljina",
+        "paramName": "bok_desno_debljina",
         "expression": "18.0 mm",
     },
     {
-        "paramName": "J1_gornja_ploca",
+        "paramName": "gornja_ploca",
         "expression": "0",
     },
     # {
-    #     "paramName": "J1_gornja_ploca_debljina",
+    #     "paramName": "gornja_ploca_debljina",
     #     "expression": "18.0 mm",
     # },
     # {
-    #     "paramName": "J1_gornja_napust",
+    #     "paramName": "gornja_napust",
     #     "expression": "0.0 mm",
     # },
     {
-        "paramName": "J1_ukrute",
+        "paramName": "ukrute",
         "expression": "1",
     },
     {
-        "paramName": "J1_ukruta_širina",
+        "paramName": "ukruta_širina",
         "expression": "80.0 mm",
     },
     {
-        "paramName": "J1_leđa_debljina",
+        "paramName": "leđa_debljina",
         "expression": "3.0 mm",
     },
     {
-        "paramName": "J1_leđa_ofset",
+        "paramName": "leđa_ofset",
         "expression": "1.0 mm",
     },
-    {"paramName": "J1_leđa_upust", "expression": "0 mm"},
+    {"paramName": "leđa_upust", "expression": "0 mm"},
     {
-        "paramName": "J1_leđa_dubina_slota_u_bokovima",
+        "paramName": "leđa_dubina_slota_u_bokovima",
         "expression": "0 mm",
     },
     {
-        "paramName": "J1_fronta",
+        "paramName": "fronta",
         "expression": "1",
     },
     {
-        "paramName": "J1_fronta_pokriva_donju_plocu",
+        "paramName": "fronta_pokriva_donju_plocu",
         "expression": "1",
     },
     {
-        "paramName": "J1_fronta_unutarnje_pokrivanje",
+        "paramName": "fronta_unutarnje_pokrivanje",
         "expression": "0",
     },
     {
-        "paramName": "J1_fronta_ofset",
+        "paramName": "fronta_ofset",
         "expression": "2.0 mm",
     },
     {
-        "paramName": "J1_fronta_debljina",
+        "paramName": "fronta_debljina",
         "expression": "19.0 mm",
     },
     # {
-    #     "paramName": "J1_fronta_pokriva_gornju_plocu",
+    #     "paramName": "fronta_pokriva_gornju_plocu",
     #     "expression": "1",
     # },
     {
-        "paramName": "J1_polica_upust",
+        "paramName": "polica_upust",
         "expression": "20.0 mm",
     },
     {
-        "paramName": "J1_polica_suzenje",
+        "paramName": "polica_suzenje",
         "expression": "1.0 mm",
     },
     {
-        "paramName": "J1_broj_polica",
+        "paramName": "broj_polica",
         "expression": "2",
     },
 ]
