@@ -117,10 +117,14 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     # Create a value input field and set the default using 1 unit of the default length unit.
 
     #####  CREATING A DIALOG  #####
-    inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
-    inputs.addTextBoxCommandInput(
-        "newComponentName", "Ime novog ormara", "O1", 1, False
-    )
+    # add bellow 2 inputs only if doc name is J1
+    doc = app.activeDocument
+    futil.log(f"Current document: {doc.name}")
+    if doc.name.startswith("J1"):
+        inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
+        inputs.addTextBoxCommandInput(
+            "newComponentName", "Ime novog ormara", "O1", 1, False
+        )
 
     prefixis = get_prefixes()
     for prefix in prefixis:
