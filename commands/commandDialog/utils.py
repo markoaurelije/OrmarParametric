@@ -1,5 +1,4 @@
 from typing import Optional
-import adsk.core
 import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
 from ..commandDialog.presets import presets
@@ -259,26 +258,39 @@ def set_component_visibility():
             )
             rootComp = design.rootComponent
 
-        futil.log(f"Root component: {rootComp.name}")
+        # futil.log(f"Root component: {rootComp.name}")
         # futil.log(
-        #     f"Root component occurrences: {[comp.component.name for comp in rootComp.occurrences]}"
+        #     f"Root component occurrences: {[occurrence.component.name for occurrence in rootComp.occurrences]}"
         # )
         for occurrence in rootComp.occurrences:
             # futil.log(f"Occurrence: {occurrence.name}")
-            if occurrence.component.name == "gornja_ploca":
+            if occurrence.component.name.startswith("gornja_ploca"):
                 gornjaPlocaComp = occurrence
-            elif occurrence.component.name == "ukrute":
+            elif occurrence.component.name.startswith("ukrute"):
                 ukruteComp = occurrence
-            elif occurrence.component.name == "fronta lijevo":
+            elif occurrence.component.name.startswith("fronta lijevo"):
                 lijevaFrontaComp = occurrence
-            elif occurrence.component.name == "fronta desno":
+            elif occurrence.component.name.startswith("fronta desno"):
                 desnaFrontaComp = occurrence
 
             if gornjaPlocaComp and ukruteComp and lijevaFrontaComp and desnaFrontaComp:
                 break
 
+        # futil.log(
+        #     f"Finished getting components: {gornjaPlocaComp.name}, {ukruteComp.name}, {lijevaFrontaComp.name}, {desnaFrontaComp.name}"
+        # )
+        # futil.log(
+        #     f"Params: { gornja_ploca_presence.value}: {bool(gornja_ploca_presence.value)}, { ukrute_presence.value}, { fronta_presence.value}, { lijevo_otvaranje.value}, { dvostrano_otvaranje.value}"
+        # )
+
         if gornja_ploca_presence and gornjaPlocaComp:
+            # futil.log(
+            #     f"Setting visibility for gornja ploca to {bool(gornja_ploca_presence.value)}, current: {gornjaPlocaComp.isLightBulbOn}"
+            # )
             gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
+            # futil.log(
+            #     f"Finished setting visibility for gornja ploca: {gornjaPlocaComp.isLightBulbOn}"
+            # )
 
         if lijevaFrontaComp:
             lijevaFrontaComp.isLightBulbOn = bool(
@@ -368,19 +380,26 @@ def add_parametric_component(name: str, create_new_design: bool = False):
     # open new design and insert the base design
     if create_new_design:
         target_doc = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+        futil.log(f"Activating")
+        target_doc.activate()
     else:
-        # target data_file
-        target_data_file = get_design_by_name("test", "Ormari - parametric")
-        if not target_data_file:
-            app.userInterface.messageBox("Target design not found", "Erorr")
-            return
-        # open and activate a data file
-        futil.log(f"Opening target document: {target_data_file.name}")
-        target_doc = app.documents.open(target_data_file)
+        # get curently active design
+        doc = app.activeDocument
+        futil.log(f"Current document: {doc.name}")
+        if not doc.name.startswith("J1"):
+            target_doc = doc
+        else:
+            # target data_file
+            target_data_file = get_design_by_name("test", "Ormari - parametric")
+            if not target_data_file:
+                app.userInterface.messageBox("Target design not found", "Erorr")
+                return
+            # open and activate a data file
+            futil.log(f"Opening target document: {target_data_file.name}")
+            target_doc = app.documents.open(target_data_file)
 
-    futil.log(f"Activating")
-    target_doc.activate()
-    futil.log(f"Target document activated: {target_doc.name}")
+            futil.log(f"Activating")
+            target_doc.activate()
 
     design = adsk.fusion.Design.cast(app.activeProduct)
     # make sure "design" is not a base design, compare by name
@@ -397,6 +416,7 @@ def add_parametric_component(name: str, create_new_design: bool = False):
     )
     occurrence.component.name = name
     # rename all user parameters that start with J1_* with the <name>_
+    futil.log(f"Renaming user parameters to {name}_*")
     for user_param in design.userParameters:
         if user_param.name.startswith("J1_"):
             user_param.name = name + "_" + user_param.name[3:]
