@@ -36,7 +36,7 @@ def create_input(
             input_item_name,
             input_item.description,
             defaultLengthUnits,
-            adsk.core.ValueInput.createByReal(param.value),
+            adsk.core.ValueInput.createByString(param.expression),
         )
         futil.log(f"Creating input {input_item_name}, step3")
     elif input_item.type == InputType.BOOL and param:
@@ -98,7 +98,8 @@ def set_input_via_userparam(
     if input:
         futil.log(f"Updating input {input_item.name}")
         if input_item.type == InputType.VALUE:
-            input.value = param.value
+            input = adsk.core.ValueCommandInput.cast(input)
+            input.expression = param.expression
         elif input_item.type == InputType.INTEGER:
             input.value = int(param.value)
         elif input_item.type == InputType.BOOL:
@@ -196,7 +197,7 @@ def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs, prefix: str)
 
 
 def input_to_user_parameter(
-    userParams,
+    userParams: adsk.fusion.UserParameters,
     inputs: adsk.core.CommandInputs,
     input_item: InputItem,
     prefix: str,
@@ -212,7 +213,9 @@ def input_to_user_parameter(
 
     # futil.log(f"Setting user parameter {user_param_name}")
     if input_item.type == InputType.VALUE:
-        param.expression = inputs.itemById(user_param_name).expression
+        param.expression = adsk.core.ValueCommandInput.cast(
+            inputs.itemById(user_param_name)
+        ).expression
     elif input_item.type == InputType.BOOL:
         param.value = 1 if inputs.itemById(user_param_name).value else 0
     elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
