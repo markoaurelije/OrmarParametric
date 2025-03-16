@@ -31,14 +31,14 @@ def create_input(
     inputs = parent.children if parent else inputs
 
     if input_item.type == InputType.VALUE and param:
-        futil.log(f"Creating input {input_item_name}, step2")
+        # futil.log(f"Creating input {input_item_name}, step2")
         input = inputs.addValueInput(
             input_item_name,
             input_item.description,
             defaultLengthUnits,
             adsk.core.ValueInput.createByString(param.expression),
         )
-        futil.log(f"Creating input {input_item_name}, step3")
+        # futil.log(f"Creating input {input_item_name}, step3")
     elif input_item.type == InputType.BOOL and param:
         input = inputs.addBoolValueInput(
             input_item_name,
@@ -79,8 +79,6 @@ def set_input_via_userparam(
     if input_item is None:
         return
 
-    futil.log(f"Setting input {input_item.name}")
-
     design = adsk.fusion.Design.cast(app.activeProduct)
     user_param_name = prefix + input_item.name if input_item.name else None
     param = (
@@ -93,8 +91,10 @@ def set_input_via_userparam(
         )
         return
 
+    futil.log(f"Setting input {input_item.name} to {param.expression}")
+
     # find the input if it exists in inputs
-    input = inputs.itemById(input_item.name)
+    input = inputs.itemById(f"{prefix}{input_item.name}")
     if input:
         futil.log(f"Updating input {input_item.name}")
         if input_item.type == InputType.VALUE:
@@ -361,24 +361,24 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
         input_param = [
             input
             for input in input_items
-            if f"{prefix}{input.name}" == param["paramName"]
+            if f"{prefix}{input.name}" == f"{prefix}{param['paramName']}"
         ]
         if not input_param:
             futil.log(
-                f"Input param {param['paramName']} not found",
+                f"Input param {prefix}{param['paramName']} not found",
                 adsk.core.LogLevels.ErrorLogLevel,
             )
             continue
         input_param = input_param[0]
 
-        set_user_parameter(input_param.name, param["expression"])
-        set_input_via_userparam(input_param, inputs)
+        set_user_parameter(f"{prefix}{input_param.name}", param["expression"])
+        set_input_via_userparam(input_param, inputs, prefix)
 
     set_component_visibility()
 
 
 def add_parametric_component(name: str, create_new_design: bool = False):
-    base_data_file = get_design_by_name("J1", "Ormari - parametric")
+    base_data_file = get_design_by_name("J1", "Default Project", "Ormari - parametric")
     if not base_data_file:
         app.userInterface.messageBox("Base design not found", "Erorr")
         return
@@ -422,17 +422,23 @@ def add_parametric_component(name: str, create_new_design: bool = False):
         base_data_file, adsk.core.Matrix3D.create(), False
     )
     occurrence.component.name = name
+    rename_user_parameters(name)
+    futil.log(f"New component inserted: {occurrence.component.name}")
+
+
+def rename_user_parameters(name: str):
+    design = adsk.fusion.Design.cast(app.activeProduct)
     # rename all user parameters that start with J1_* with the <name>_
     futil.log(f"Renaming user parameters to {name}_*")
     for user_param in design.userParameters:
         if user_param.name.startswith("J1_"):
             user_param.name = name + "_" + user_param.name[3:]
-    futil.log(f"New component inserted: {occurrence.component.name}")
 
 
 def set_user_parameter(param_name: str, value: str):
     design = adsk.fusion.Design.cast(app.activeProduct)
     param = design.userParameters.itemByName(param_name)
+    futil.log(f"Setting user parameter {param_name} to {value}")
     if param:
         param.expression = value
     else:

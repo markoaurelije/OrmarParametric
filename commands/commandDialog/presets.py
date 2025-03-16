@@ -48,20 +48,20 @@ kuhinja_viseci_element = [
         "expression": "0",
     },
     {
-        "paramName": "ukruta_širina",
+        "paramName": "ukruta_sirina",
         "expression": "80.0 mm",
     },
     {
-        "paramName": "leđa_debljina",
+        "paramName": "ledja_debljina",
         "expression": "3.0 mm",
     },
     {
-        "paramName": "leđa_ofset",
+        "paramName": "ledja_ofset",
         "expression": "1.0 mm",
     },
-    {"paramName": "leđa_upust", "expression": "18 mm"},
+    {"paramName": "ledja_upust", "expression": "18 mm"},
     {
-        "paramName": "leđa_dubina_slota_u_bokovima",
+        "paramName": "ledja_dubina_slota_u_bokovima",
         "expression": "10.0 mm",
     },
     {
@@ -151,20 +151,20 @@ kuhinja_donji_element = [
         "expression": "1",
     },
     {
-        "paramName": "ukruta_širina",
+        "paramName": "ukruta_sirina",
         "expression": "80.0 mm",
     },
     {
-        "paramName": "leđa_debljina",
+        "paramName": "ledja_debljina",
         "expression": "3.0 mm",
     },
     {
-        "paramName": "leđa_ofset",
+        "paramName": "ledja_ofset",
         "expression": "1.0 mm",
     },
-    {"paramName": "leđa_upust", "expression": "0 mm"},
+    {"paramName": "ledja_upust", "expression": "0 mm"},
     {
-        "paramName": "leđa_dubina_slota_u_bokovima",
+        "paramName": "ledja_dubina_slota_u_bokovima",
         "expression": "0 mm",
     },
     {
