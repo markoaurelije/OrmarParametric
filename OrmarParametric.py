@@ -1,13 +1,19 @@
 # Assuming you have not changed the general structure of the template no modification is needed in this file.
 # import traceback
+import os
+import sys
 from . import commands
 from .lib import fusionAddInUtils as futil
+
+addin_path = os.path.dirname(os.path.realpath(__file__))
+lib_path = os.path.join(addin_path, "lib")
+if lib_path not in sys.path:
+    sys.path.append(lib_path)
 
 
 def run(context):
     try:
         commands.start()
-
     except:
         futil.handle_error("run")
 
