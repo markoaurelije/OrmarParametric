@@ -141,6 +141,7 @@ def create_dialog(inputs: adsk.core.CommandInputs):
             # futil.log(f"Adding input: {input_item.name}")
             create_input(tab_input.children, input_item, prefix)
             set_input_via_userparam(input_item, tab_input.children, prefix)
+    # set width of the dialog so all inputs are
 
 
 def get_prefixes():
@@ -155,7 +156,7 @@ def get_prefixes():
         for param in userParams
         if param.endswith(param_base_name)
     }
-    futil.log(f"initial prefixes: {prefixis}")
+    # futil.log(f"initial prefixes: {prefixis}")
 
     for input_item in input_items_without_groups[1:]:
         if input_item.name is None:
@@ -172,7 +173,7 @@ def get_prefixes():
             break
 
     prefixis = sorted(prefixis)
-    futil.log(f"resulting prefixes: {prefixis}")
+    futil.log(f"found prefixes: {prefixis}")
     return prefixis
 
     # dropdown = inputs.addDropDownCommandInput(
@@ -226,92 +227,87 @@ def input_to_user_parameter(
         param.expression = str(inputs.itemById(user_param_name).value)
 
 
-def set_component_visibility():
+def set_component_visibility(prefix):
     design = adsk.fusion.Design.cast(app.activeProduct)
 
-    for prefix in get_prefixes():
-        futil.log(f"Setting visibility for prefix: {prefix}")
+    futil.log(f"Setting visibility for prefix: {prefix}")
 
-        gornja_ploca_presence = design.userParameters.itemByName(
-            prefix + "gornja_ploca"
-        )
-        ukrute_presence = design.userParameters.itemByName(prefix + "ukrute")
-        fronta_presence = design.userParameters.itemByName(prefix + "fronta")
-        lijevo_otvaranje = design.userParameters.itemByName(
-            prefix + "fronta_lijevo_otvaranje"
-        )
-        dvostrano_otvaranje = design.userParameters.itemByName(
-            prefix + "fronta_lijeva_i_desna"
-        )
+    gornja_ploca_presence = design.userParameters.itemByName(prefix + "gornja_ploca")
+    ukrute_presence = design.userParameters.itemByName(prefix + "ukrute")
+    fronta_presence = design.userParameters.itemByName(prefix + "fronta")
+    lijevo_otvaranje = design.userParameters.itemByName(
+        prefix + "fronta_lijevo_otvaranje"
+    )
+    dvostrano_otvaranje = design.userParameters.itemByName(
+        prefix + "fronta_lijeva_i_desna"
+    )
 
-        futil.log(f"Finished getting user parameters")
-        # Get the target component (change index if needed)
-        gornjaPlocaComp = None
-        ukruteComp = None
-        lijevaFrontaComp = None
-        desnaFrontaComp = None
+    # futil.log(f"Finished getting user parameters")
+    # Get the target component (change index if needed)
+    gornjaPlocaComp = None
+    ukruteComp = None
+    lijevaFrontaComp = None
+    desnaFrontaComp = None
 
-        rootComp = next(
-            (
-                comp.component
-                for comp in design.rootComponent.occurrences
-                if comp.component.name == prefix.rstrip("_")
-            ),
-            None,
+    rootComp = next(
+        (
+            comp.component
+            for comp in design.rootComponent.occurrences
+            if comp.component.name == prefix.rstrip("_")
+        ),
+        None,
+    )
+    if rootComp is None:
+        futil.log(
+            f"Component {prefix.rstrip("_")} not found. Availible components: {[comp.component.name for comp in design.rootComponent.occurrences]}"
         )
-        if rootComp is None:
-            futil.log(
-                f"Component {prefix.rstrip("_")} not found. Availible components: {[comp.component.name for comp in design.rootComponent.occurrences]}"
-            )
-            rootComp = design.rootComponent
+        rootComp = design.rootComponent
 
-        # futil.log(f"Root component: {rootComp.name}")
+    # futil.log(f"Root component: {rootComp.name}")
+    # futil.log(
+    #     f"Root component occurrences: {[occurrence.component.name for occurrence in rootComp.occurrences]}"
+    # )
+    for occurrence in rootComp.occurrences:
+        # futil.log(f"Occurrence: {occurrence.name}")
+        if occurrence.component.name.startswith("gornja_ploca"):
+            gornjaPlocaComp = occurrence
+        elif occurrence.component.name.startswith("ukrute"):
+            ukruteComp = occurrence
+        elif occurrence.component.name.startswith("fronta lijevo"):
+            lijevaFrontaComp = occurrence
+        elif occurrence.component.name.startswith("fronta desno"):
+            desnaFrontaComp = occurrence
+
+        if gornjaPlocaComp and ukruteComp and lijevaFrontaComp and desnaFrontaComp:
+            break
+
+    # futil.log(
+    #     f"Finished getting components: {gornjaPlocaComp.name}, {ukruteComp.name}, {lijevaFrontaComp.name}, {desnaFrontaComp.name}"
+    # )
+    # futil.log(
+    #     f"Params: { gornja_ploca_presence.value}: {bool(gornja_ploca_presence.value)}, { ukrute_presence.value}, { fronta_presence.value}, { lijevo_otvaranje.value}, { dvostrano_otvaranje.value}"
+    # )
+
+    if gornja_ploca_presence and gornjaPlocaComp:
         # futil.log(
-        #     f"Root component occurrences: {[occurrence.component.name for occurrence in rootComp.occurrences]}"
+        #     f"Setting visibility for gornja ploca to {bool(gornja_ploca_presence.value)}, current: {gornjaPlocaComp.isLightBulbOn}"
         # )
-        for occurrence in rootComp.occurrences:
-            # futil.log(f"Occurrence: {occurrence.name}")
-            if occurrence.component.name.startswith("gornja_ploca"):
-                gornjaPlocaComp = occurrence
-            elif occurrence.component.name.startswith("ukrute"):
-                ukruteComp = occurrence
-            elif occurrence.component.name.startswith("fronta lijevo"):
-                lijevaFrontaComp = occurrence
-            elif occurrence.component.name.startswith("fronta desno"):
-                desnaFrontaComp = occurrence
-
-            if gornjaPlocaComp and ukruteComp and lijevaFrontaComp and desnaFrontaComp:
-                break
-
+        gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
         # futil.log(
-        #     f"Finished getting components: {gornjaPlocaComp.name}, {ukruteComp.name}, {lijevaFrontaComp.name}, {desnaFrontaComp.name}"
-        # )
-        # futil.log(
-        #     f"Params: { gornja_ploca_presence.value}: {bool(gornja_ploca_presence.value)}, { ukrute_presence.value}, { fronta_presence.value}, { lijevo_otvaranje.value}, { dvostrano_otvaranje.value}"
+        #     f"Finished setting visibility for gornja ploca: {gornjaPlocaComp.isLightBulbOn}"
         # )
 
-        if gornja_ploca_presence and gornjaPlocaComp:
-            # futil.log(
-            #     f"Setting visibility for gornja ploca to {bool(gornja_ploca_presence.value)}, current: {gornjaPlocaComp.isLightBulbOn}"
-            # )
-            gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
-            # futil.log(
-            #     f"Finished setting visibility for gornja ploca: {gornjaPlocaComp.isLightBulbOn}"
-            # )
+    if lijevaFrontaComp:
+        lijevaFrontaComp.isLightBulbOn = bool(
+            fronta_presence and lijevo_otvaranje.value or dvostrano_otvaranje.value
+        )
+    if desnaFrontaComp:
+        desnaFrontaComp.isLightBulbOn = bool(
+            fronta_presence and not lijevo_otvaranje.value or dvostrano_otvaranje.value
+        )
 
-        if lijevaFrontaComp:
-            lijevaFrontaComp.isLightBulbOn = bool(
-                fronta_presence and lijevo_otvaranje.value or dvostrano_otvaranje.value
-            )
-        if desnaFrontaComp:
-            desnaFrontaComp.isLightBulbOn = bool(
-                fronta_presence
-                and not lijevo_otvaranje.value
-                or dvostrano_otvaranje.value
-            )
-
-        if ukrute_presence and ukruteComp:
-            ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
+    if ukrute_presence and ukruteComp:
+        ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
 
 
 def get_design_by_name(
@@ -374,7 +370,7 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
         set_user_parameter(f"{prefix}{input_param.name}", param["expression"])
         set_input_via_userparam(input_param, inputs, prefix)
 
-    set_component_visibility()
+    set_component_visibility(prefix)
 
 
 def add_parametric_component(name: str, create_new_design: bool = False):

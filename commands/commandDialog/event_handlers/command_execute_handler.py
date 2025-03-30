@@ -24,4 +24,4 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         prefixis = get_prefixes()
         for prefix in prefixis:
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
-            set_component_visibility()
+            set_component_visibility(prefix)

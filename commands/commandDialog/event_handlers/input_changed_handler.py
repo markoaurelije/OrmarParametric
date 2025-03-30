@@ -50,8 +50,6 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 add_parametric_component(new_name.text if new_name else "Ox")
                 return
 
-            # track time execution of this part of code, start timer here
-            start_time = time.time()
             # find this input in InputItems list, and check if it has dependencies
             for input_item in input_items:
                 if input_item.name == changed_input.id:
@@ -77,10 +75,6 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                                 set_user_parameter(d_input.name, dependency.value)
                                 set_input_via_userparam(d_input, self.inputs)
                     break
-            # track time execution of this part of code, end timer here
-            end_time = time.time()
-            execution_time = end_time - start_time
-            futil.log(f"Execution time: {execution_time} seconds")
 
         except:
             app = adsk.core.Application.get()

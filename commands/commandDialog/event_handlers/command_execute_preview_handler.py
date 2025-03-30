@@ -23,4 +23,6 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         prefixis = get_prefixes()
         for prefix in prefixis:
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
-            set_component_visibility()
+            set_component_visibility(prefix)
+
+        futil.log(f"Command Execute Preview Event finished")
