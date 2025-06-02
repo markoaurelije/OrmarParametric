@@ -317,11 +317,11 @@ def set_component_visibility(prefix):
 
     if lijevaFrontaComp:
         lijevaFrontaComp.isLightBulbOn = bool(
-            fronta_presence and lijevo_otvaranje.value or dvostrano_otvaranje.value
+            fronta_presence.value and (lijevo_otvaranje.value or dvostrano_otvaranje.value)
         )
     if desnaFrontaComp:
         desnaFrontaComp.isLightBulbOn = bool(
-            fronta_presence and not lijevo_otvaranje.value or dvostrano_otvaranje.value
+            fronta_presence.value and (not lijevo_otvaranje.value or dvostrano_otvaranje.value)
         )
 
     if ukrute_presence and ukruteComp:
