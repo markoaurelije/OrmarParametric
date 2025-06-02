@@ -33,24 +33,33 @@ class InputItem:
 
 input_items: list[InputItem] = [
     InputItem(
+        name="osnovne_dimenzije",
+        type=InputType.GROUP,
+        description="Osnovne Dimenzije",
+    ),
+    InputItem(
         name="sirina",
         type=InputType.VALUE,
         description="Ukupna Širina",
+        parent="osnovne_dimenzije",
     ),
     InputItem(
         name="dubina",
         type=InputType.VALUE,
         description="Ukupna Dubina",
+        parent="osnovne_dimenzije",
     ),
     InputItem(
         name="visina",
         type=InputType.VALUE,
         description="Ukupna Visina",
+        parent="osnovne_dimenzije",
     ),
     InputItem(
         name="donja_ploca_debljina",
         type=InputType.VALUE,
         description="Debljina donje ploče",
+        parent="osnovne_dimenzije",
     ),
     InputItem(
         name="grupa_bokovi",
@@ -75,6 +84,12 @@ input_items: list[InputItem] = [
         #         triggerring_value=True,
         #     )
         # ],
+    ),
+    InputItem(
+        name="pregrada",
+        type=InputType.BOOL,
+        description="Pregrada",
+        parent="grupa_bokovi",
     ),
     InputItem(
         name="bok_lijevo_debljina",
@@ -221,5 +236,16 @@ input_items: list[InputItem] = [
         type=InputType.INTEGER,
         description="Broj polica",
         parent="grupa_police",
+    ),
+    InputItem(
+        name="cokla",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Cokla"
+    ),
+    InputItem(
+        name="cokla_visina",
+        type=InputType.VALUE,
+        description="Visina cokle",
+        parent="cokla",
     ),
 ]

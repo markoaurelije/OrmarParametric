@@ -11,7 +11,7 @@ def create_input(
     inputs: adsk.core.CommandInputs, input_item: InputItem, prefix: str = "J1_"
 ):
     input_item_name = prefix + input_item.name
-    futil.log(f"Creating input {input_item_name}")
+    # futil.log(f"Creating input {input_item_name}")
     design = adsk.fusion.Design.cast(app.activeProduct)
 
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
@@ -20,7 +20,7 @@ def create_input(
         design.userParameters.itemByName(user_param_name) if user_param_name else None
     )
 
-    futil.log(f"Parent: {input_item.parent}")
+    # futil.log(f"Parent: {input_item.parent}")
 
     parent = inputs.itemById(prefix + input_item.parent) if input_item.parent else None
     if input_item.parent and not parent:
@@ -58,7 +58,7 @@ def create_input(
         )
     elif "group" in input_item.type.value:
         input = inputs.addGroupCommandInput(input_item_name, input_item.description)
-        input.isExpanded = True
+        input.isExpanded = False
         if "with_checkbox" in input_item.type.value and param:
             input.isEnabledCheckBoxDisplayed = True
             input.isEnabledCheckBoxChecked = bool(param.value)
@@ -241,6 +241,8 @@ def set_component_visibility(prefix):
     dvostrano_otvaranje = design.userParameters.itemByName(
         prefix + "fronta_lijeva_i_desna"
     )
+    cokla_presence = design.userParameters.itemByName(prefix + "cokla")
+    pregrada_presence = design.userParameters.itemByName(prefix + "pregrada")
 
     # futil.log(f"Finished getting user parameters")
     # Get the target component (change index if needed)
@@ -248,6 +250,16 @@ def set_component_visibility(prefix):
     ukruteComp = None
     lijevaFrontaComp = None
     desnaFrontaComp = None
+    coklaComp = None
+    pregradaComp = None
+    components_to_find = [
+        gornjaPlocaComp,
+        ukruteComp,
+        lijevaFrontaComp,
+        desnaFrontaComp,
+        coklaComp,
+        pregradaComp,
+    ]
 
     rootComp = next(
         (
@@ -259,7 +271,7 @@ def set_component_visibility(prefix):
     )
     if rootComp is None:
         futil.log(
-            f"Component {prefix.rstrip("_")} not found. Availible components: {[comp.component.name for comp in design.rootComponent.occurrences]}"
+            f"Component {prefix.rstrip("_")} not found. Using root comp. Availible components: {[comp.component.name for comp in design.rootComponent.occurrences]}"
         )
         rootComp = design.rootComponent
 
@@ -277,8 +289,14 @@ def set_component_visibility(prefix):
             lijevaFrontaComp = occurrence
         elif occurrence.component.name.startswith("fronta desno"):
             desnaFrontaComp = occurrence
+        elif occurrence.component.name.startswith("cokla"):
+            coklaComp = occurrence
+        elif occurrence.component.name.startswith("pregrada"):
+            pregradaComp = occurrence
 
-        if gornjaPlocaComp and ukruteComp and lijevaFrontaComp and desnaFrontaComp:
+        if all(
+            comp is not None for comp in components_to_find
+        ):
             break
 
     # futil.log(
@@ -308,6 +326,12 @@ def set_component_visibility(prefix):
 
     if ukrute_presence and ukruteComp:
         ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
+
+    if cokla_presence and coklaComp:
+        coklaComp.isLightBulbOn = bool(cokla_presence.value)
+    
+    if pregradaComp and pregrada_presence:
+        pregradaComp.isLightBulbOn = bool(pregrada_presence.value)
 
 
 def get_design_by_name(
