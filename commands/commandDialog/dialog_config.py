@@ -203,15 +203,15 @@ input_items: list[InputItem] = [
         parent="fronta",
     ),
     InputItem(
-        name="fronta_lijevo_otvaranje",
+        name="fronta_lijeva",
         type=InputType.BOOL,
         description="Lijevo otvaranje",
         parent="fronta",
     ),
     InputItem(
-        name="fronta_lijeva_i_desna",
+        name="fronta_desna",
         type=InputType.BOOL,
-        description="Dvostrano otvaranje",
+        description="Desno otvaranje",
         parent="fronta",
     ),
     InputItem(
