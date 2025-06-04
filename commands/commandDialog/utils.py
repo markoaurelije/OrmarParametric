@@ -243,6 +243,7 @@ def set_component_visibility(prefix):
     desnaFrontaComp = None
     coklaComp = None
     pregradaComp = None
+    policaComp = None
     components_to_find = [
         gornjaPlocaComp,
         ukruteComp,
@@ -250,6 +251,7 @@ def set_component_visibility(prefix):
         desnaFrontaComp,
         coklaComp,
         pregradaComp,
+        policaComp,
     ]
 
     rootComp = next(
@@ -279,6 +281,8 @@ def set_component_visibility(prefix):
             coklaComp = occurrence
         elif occurrence.component.name.startswith("pregrada"):
             pregradaComp = occurrence
+        elif occurrence.component.name.startswith("polica"):
+            policaComp = occurrence
 
         if all(
             comp is not None for comp in components_to_find
@@ -306,6 +310,20 @@ def set_component_visibility(prefix):
     
     if pregradaComp and pregrada_presence:
         pregradaComp.isLightBulbOn = bool(pregrada_presence.value)
+
+    # now suppress features based on user parameters
+    for feature in ukruteComp.childOccurrences[0].component.features:
+        futil.log(f"Checking feature: {feature.name}")
+        if feature.name.startswith("split ukrute"):
+            futil.log(f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}")
+            feature.isSuppressed = not pregradaComp.isLightBulbOn
+            break
+    for feature in policaComp.component.features:
+        futil.log(f"Checking feature: {feature.name}")
+        if feature.name.startswith("split police"):
+            futil.log(f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}")
+            feature.isSuppressed = not pregradaComp.isLightBulbOn
+            break
 
 
 def get_design_by_name(
