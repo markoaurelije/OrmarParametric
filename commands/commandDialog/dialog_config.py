@@ -215,33 +215,29 @@ input_items: list[InputItem] = [
         parent="fronta",
     ),
     InputItem(
-        name="grupa_police",
-        type=InputType.GROUP,
+        name="police",
+        type=InputType.GROUP_WITH_CHECKBOX,
         description="Police",
     ),
     InputItem(
         name="polica_upust",
         type=InputType.VALUE,
         description="Upust police",
-        parent="grupa_police",
+        parent="police",
     ),
     InputItem(
         name="polica_suzenje",
         type=InputType.VALUE,
         description="Suženje police",
-        parent="grupa_police",
+        parent="police",
     ),
     InputItem(
         name="broj_polica",
         type=InputType.INTEGER,
         description="Broj polica",
-        parent="grupa_police",
+        parent="police",
     ),
-    InputItem(
-        name="cokla",
-        type=InputType.GROUP_WITH_CHECKBOX,
-        description="Cokla"
-    ),
+    InputItem(name="cokla", type=InputType.GROUP_WITH_CHECKBOX, description="Cokla"),
     InputItem(
         name="cokla_visina",
         type=InputType.VALUE,

@@ -231,6 +231,7 @@ def set_component_visibility(prefix):
     desno_otvaranje = design.userParameters.itemByName(prefix + "fronta_desna")
     cokla_presence = design.userParameters.itemByName(prefix + "cokla")
     pregrada_presence = design.userParameters.itemByName(prefix + "pregrada")
+    police_presence = design.userParameters.itemByName(prefix + "police")
 
     # Get the target component (change index if needed)
     gornjaPlocaComp = None
@@ -239,7 +240,7 @@ def set_component_visibility(prefix):
     desnaFrontaComp = None
     coklaComp = None
     pregradaComp = None
-    policaComp = None
+    policaComp = []
     components_to_find = [
         gornjaPlocaComp,
         ukruteComp,
@@ -278,7 +279,7 @@ def set_component_visibility(prefix):
         elif occurrence.component.name.startswith("pregrada"):
             pregradaComp = occurrence
         elif occurrence.component.name.startswith("polica"):
-            policaComp = occurrence
+            policaComp.append(occurrence)
 
         if all(comp is not None for comp in components_to_find):
             break
@@ -298,6 +299,10 @@ def set_component_visibility(prefix):
     if ukrute_presence and ukruteComp:
         ukruteComp.isLightBulbOn = bool(ukrute_presence.value)
 
+    if policaComp and police_presence:
+        for polica in policaComp:
+            polica.isLightBulbOn = bool(police_presence.value)
+
     if cokla_presence and coklaComp:
         coklaComp.isLightBulbOn = bool(cokla_presence.value)
 
@@ -313,14 +318,16 @@ def set_component_visibility(prefix):
             )
             feature.isSuppressed = not pregradaComp.isLightBulbOn
             break
-    for feature in policaComp.component.features:
-        futil.log(f"Checking feature: {feature.name}")
-        if feature.name.startswith("split police"):
-            futil.log(
-                f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
-            )
-            feature.isSuppressed = not pregradaComp.isLightBulbOn
-            break
+
+    for polica in policaComp:
+        for feature in polica.component.features:
+            futil.log(f"Checking feature: {feature.name}")
+            if feature.name.startswith("split police"):
+                futil.log(
+                    f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
+                )
+                feature.isSuppressed = not pregradaComp.isLightBulbOn
+                break
 
 
 def get_design_by_name(

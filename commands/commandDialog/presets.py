@@ -89,6 +89,10 @@ kuhinja_viseci_element = [
         "expression": "1",
     },
     {
+        "paramName": "police",
+        "expression": "1",
+    },
+    {
         "paramName": "polica_upust",
         "expression": "20.0 mm",
     },
@@ -104,10 +108,7 @@ kuhinja_viseci_element = [
         "paramName": "cokla",
         "expression": "0",
     },
-    {
-        "paramName": "cokla_visina", 
-        "expression": "60.0 mm"
-    },
+    {"paramName": "cokla_visina", "expression": "60.0 mm"},
 ]
 kuhinja_donji_element = [
     {
@@ -200,6 +201,10 @@ kuhinja_donji_element = [
     #     "expression": "1",
     # },
     {
+        "paramName": "police",
+        "expression": "1",
+    },
+    {
         "paramName": "polica_upust",
         "expression": "20.0 mm",
     },
@@ -215,10 +220,7 @@ kuhinja_donji_element = [
         "paramName": "cokla",
         "expression": "0",
     },
-    {
-        "paramName": "cokla_visina", 
-        "expression": "60.0 mm"
-    },
+    {"paramName": "cokla_visina", "expression": "60.0 mm"},
 ]
 
 komoda = [
@@ -282,10 +284,7 @@ komoda = [
         "paramName": "ledja_ofset",
         "expression": "1.0 mm",
     },
-    {
-        "paramName": "ledja_upust", 
-        "expression": "3 mm"
-    },
+    {"paramName": "ledja_upust", "expression": "3 mm"},
     {
         "paramName": "ledja_dubina_slota_u_bokovima",
         "expression": "10 mm",
@@ -315,6 +314,10 @@ komoda = [
         "expression": "0",
     },
     {
+        "paramName": "police",
+        "expression": "1",
+    },
+    {
         "paramName": "polica_upust",
         "expression": "20.0 mm",
     },
@@ -326,15 +329,11 @@ komoda = [
         "paramName": "broj_polica",
         "expression": "2",
     },
-
     {
         "paramName": "cokla",
         "expression": "1",
     },
-    {
-        "paramName": "cokla_visina", 
-        "expression": "60.0 mm"
-    },
+    {"paramName": "cokla_visina", "expression": "60.0 mm"},
 ]
 presets = {
     "kuhinja_viseci_element": kuhinja_viseci_element,
