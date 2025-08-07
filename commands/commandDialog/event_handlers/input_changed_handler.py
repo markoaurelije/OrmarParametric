@@ -14,6 +14,8 @@ from ..utils import (
 )
 from ..dialog_config import InputType, input_items
 
+persistant_target_design_name = None
+
 
 class InputChangedHandler(adsk.core.InputChangedEventHandler):
     def __init__(
@@ -30,6 +32,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
         futil.log("InputChangedHandler deleted")
 
     def notify(self, args: adsk.core.InputChangedEventArgs):
+        global persistant_target_design_name
         try:
             # Process the changed input through the dependency manager
             # self.inputsManager.processChangedInput(self.inputs, args.input)
@@ -47,7 +50,23 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     None,
                 )
 
-                add_parametric_component(new_name.text if new_name else "Ox")
+                # ask the user to input a name for target design, open a dialog
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                target_design_name, canceled = ui.inputBox(
+                    "Enter a name for the target design:",
+                    "Test Design Name",
+                    persistant_target_design_name or "Test Design",
+                )
+                if canceled:
+                    futil.log("User canceled the input box")
+                    return
+
+                add_parametric_component(
+                    new_name.text if new_name else "Ox",
+                    target_design_name=target_design_name,
+                )
+                persistant_target_design_name = target_design_name
                 return
 
             # find this input in InputItems list, and check if it has dependencies

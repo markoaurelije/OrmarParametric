@@ -227,12 +227,8 @@ def set_component_visibility(prefix):
     gornja_ploca_presence = design.userParameters.itemByName(prefix + "gornja_ploca")
     ukrute_presence = design.userParameters.itemByName(prefix + "ukrute")
     fronta_presence = design.userParameters.itemByName(prefix + "fronta")
-    lijevo_otvaranje = design.userParameters.itemByName(
-        prefix + "fronta_lijeva"
-    )
-    desno_otvaranje = design.userParameters.itemByName(
-        prefix + "fronta_desna"
-    )
+    lijevo_otvaranje = design.userParameters.itemByName(prefix + "fronta_lijeva")
+    desno_otvaranje = design.userParameters.itemByName(prefix + "fronta_desna")
     cokla_presence = design.userParameters.itemByName(prefix + "cokla")
     pregrada_presence = design.userParameters.itemByName(prefix + "pregrada")
 
@@ -284,11 +280,8 @@ def set_component_visibility(prefix):
         elif occurrence.component.name.startswith("polica"):
             policaComp = occurrence
 
-        if all(
-            comp is not None for comp in components_to_find
-        ):
+        if all(comp is not None for comp in components_to_find):
             break
-
 
     if gornja_ploca_presence and gornjaPlocaComp:
         gornjaPlocaComp.isLightBulbOn = bool(gornja_ploca_presence.value)
@@ -307,7 +300,7 @@ def set_component_visibility(prefix):
 
     if cokla_presence and coklaComp:
         coklaComp.isLightBulbOn = bool(cokla_presence.value)
-    
+
     if pregradaComp and pregrada_presence:
         pregradaComp.isLightBulbOn = bool(pregrada_presence.value)
 
@@ -315,13 +308,17 @@ def set_component_visibility(prefix):
     for feature in ukruteComp.childOccurrences[0].component.features:
         futil.log(f"Checking feature: {feature.name}")
         if feature.name.startswith("split ukrute"):
-            futil.log(f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}")
+            futil.log(
+                f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
+            )
             feature.isSuppressed = not pregradaComp.isLightBulbOn
             break
     for feature in policaComp.component.features:
         futil.log(f"Checking feature: {feature.name}")
         if feature.name.startswith("split police"):
-            futil.log(f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}")
+            futil.log(
+                f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
+            )
             feature.isSuppressed = not pregradaComp.isLightBulbOn
             break
 
@@ -389,8 +386,14 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
     set_component_visibility(prefix)
 
 
-def add_parametric_component(name: str, create_new_design: bool = False):
-    base_data_file = get_design_by_name("J1", "Default Project", "Ormari - parametric")
+def add_parametric_component(
+    new_component_name: str,
+    create_new_design: bool = False,
+    target_design_name: str = "test",
+):
+    base_data_file = get_design_by_name(
+        "J1", "Ormari - parametric", "Ormari - parametric"
+    )
     if not base_data_file:
         app.userInterface.messageBox("Base design not found", "Erorr")
         return
@@ -409,9 +412,13 @@ def add_parametric_component(name: str, create_new_design: bool = False):
             target_doc = doc
         else:
             # target data_file
-            target_data_file = get_design_by_name("test", "Ormari - parametric")
+            target_data_file = get_design_by_name(
+                target_design_name, "Ormari - parametric"
+            )
             if not target_data_file:
-                app.userInterface.messageBox("Target design not found", "Erorr")
+                app.userInterface.messageBox(
+                    f"Target design '{target_design_name}' not found", "Erorr"
+                )
                 return
             # open and activate a data file
             futil.log(f"Opening target document: {target_data_file.name}")
@@ -433,8 +440,8 @@ def add_parametric_component(name: str, create_new_design: bool = False):
     occurrence = design.rootComponent.occurrences.addByInsert(
         base_data_file, adsk.core.Matrix3D.create(), False
     )
-    occurrence.component.name = name
-    rename_user_parameters(name)
+    occurrence.component.name = new_component_name
+    rename_user_parameters(new_component_name)
     futil.log(f"New component inserted: {occurrence.component.name}")
 
 
