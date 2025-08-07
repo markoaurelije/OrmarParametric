@@ -51,6 +51,14 @@ def create_input(
             1,
             int(param.value),
         )
+    elif input_item.type == InputType.DROPDOWN and param:
+        input = inputs.addDropDownCommandInput(
+            input_item_name,
+            input_item.description,
+            adsk.core.DropDownStyles.LabeledIconDropDownStyle,
+        )
+        for value in input_item.values or []:
+            input.listItems.add(value, value == param.expression, "")
     elif "group" in input_item.type.value:
         input = inputs.addGroupCommandInput(input_item_name, input_item.description)
         input.isExpanded = False
@@ -90,23 +98,36 @@ def set_input_via_userparam(
 
     # find the input if it exists in inputs
     input = inputs.itemById(f"{prefix}{input_item.name}")
-    if input:
-        futil.log(f"Updating input {input_item.name}")
-        if input_item.type == InputType.VALUE:
-            input = adsk.core.ValueCommandInput.cast(input)
-            input.expression = param.expression
-        elif input_item.type == InputType.INTEGER:
-            input.value = int(param.value)
-        elif input_item.type == InputType.BOOL:
-            input.value = bool(param.value)
-        elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
-            input.isEnabledCheckBoxChecked = bool(param.value)
-
+    if not input:
         futil.log(
-            f"Input {input_item.name} updated.",
+            f"Input {prefix}{input_item.name} not found in inputs.",
             adsk.core.LogLevels.WarningLogLevel,
         )
+        futil.log(f"Available inputs: {[i.id for i in inputs]}")
         return
+
+    futil.log(f"Updating input {input_item.name}")
+    if input_item.type == InputType.VALUE:
+        input = adsk.core.ValueCommandInput.cast(input)
+        input.expression = param.expression
+    elif input_item.type == InputType.INTEGER:
+        input.value = int(param.value)
+    elif input_item.type == InputType.BOOL:
+        input.value = bool(param.value)
+    elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
+        input.isEnabledCheckBoxChecked = bool(param.value)
+    elif input_item.type == InputType.DROPDOWN:
+        input = adsk.core.DropDownCommandInput.cast(input)
+        # find the item in the dropdown that matches the param value
+        for item in input.listItems:
+            if item.name == param.expression:
+                input.selectedItem = item
+                break
+
+    futil.log(
+        f"Input {input_item.name} updated.",
+        adsk.core.LogLevels.WarningLogLevel,
+    )
 
 
 def create_dialog(inputs: adsk.core.CommandInputs):
@@ -217,6 +238,17 @@ def input_to_user_parameter(
         )
     elif input_item.type == InputType.INTEGER:
         param.expression = str(inputs.itemById(user_param_name).value)
+    elif input_item.type == InputType.DROPDOWN:
+        selected_item = adsk.core.DropDownCommandInput.cast(
+            inputs.itemById(user_param_name)
+        ).selectedItem
+        if selected_item:
+            param.expression = selected_item.name
+        else:
+            futil.log(
+                f"Selected item for {user_param_name} is None",
+                adsk.core.LogLevels.WarningLogLevel,
+            )
 
 
 def set_component_visibility(prefix):

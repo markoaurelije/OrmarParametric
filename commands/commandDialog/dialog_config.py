@@ -17,7 +17,7 @@ class InputType(Enum):
     INTEGER = "integer"
     GROUP = "group"
     GROUP_WITH_CHECKBOX = "group_with_checkbox"
-    PRESETS = "presets"
+    DROPDOWN = "dropdown"
 
 
 @dataclass
@@ -25,9 +25,9 @@ class InputItem:
     name: str
     type: InputType
     description: str
-    # user_param: Optional[str] = None
     parent: Optional[str] = None
     tooltip: Optional[str] = None
+    values: Optional[List[str]] = None
     dependencies: Optional[List[Dependency]] = field(default_factory=list)
 
 
@@ -243,5 +243,42 @@ input_items: list[InputItem] = [
         type=InputType.VALUE,
         description="Visina cokle",
         parent="cokla",
+    ),
+    InputItem(
+        name="ultrabox",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Ultrabox Ladica",
+    ),
+    InputItem(
+        name="ultrabox_duljina",
+        type=InputType.DROPDOWN,
+        description="Duljina ultrabox ladice",
+        values=["270 mm", "350 mm", "400 mm", "450 mm", "500 mm"],
+        parent="ultrabox",
+    ),
+    InputItem(
+        name="ultrabox_visina",
+        type=InputType.DROPDOWN,
+        description="Visina ultrabox ladice",
+        values=["86 mm", "118 mm", "150 mm"],
+        parent="ultrabox",
+    ),
+    InputItem(
+        name="ultrabox_fronta_visina",
+        type=InputType.VALUE,
+        description="Visina fronte ultrabox ladice",
+        parent="ultrabox",
+    ),
+    InputItem(
+        name="ultrabox_podnica_debljina",
+        type=InputType.VALUE,
+        description="Debljina podnice ultrabox ladice",
+        parent="ultrabox",
+    ),
+    InputItem(
+        name="ultrabox_fronta_ofset_od_dna",
+        type=InputType.VALUE,
+        description="Ofset fronte ultrabox ladice od dna",
+        parent="ultrabox",
     ),
 ]
