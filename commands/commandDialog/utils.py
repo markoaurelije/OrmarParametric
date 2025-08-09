@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
@@ -19,10 +20,12 @@ def create_input(
         design.userParameters.itemByName(user_param_name) if user_param_name else None
     )
 
-    parent = inputs.itemById(prefix + input_item.parent) if input_item.parent else None
+    parent: Optional[adsk.core.GroupCommandInput] = (
+        inputs.itemById(prefix + input_item.parent) if input_item.parent else None
+    )
     if input_item.parent and not parent:
         futil.log(
-            f"Parent {input_item.parent} not found.",
+            f"Parent {input_item.parent} not found. Availalable parents: {[i.id for i in inputs]}. Searching in parents children...",
             adsk.core.LogLevels.WarningLogLevel,
         )
     inputs = parent.children if parent else inputs
@@ -46,8 +49,8 @@ def create_input(
         input = inputs.addIntegerSpinnerCommandInput(
             input_item_name,
             input_item.description,
-            1,
-            100,
+            input_item.min_value or 1,
+            input_item.max_value or 100,
             1,
             int(param.value),
         )
@@ -59,12 +62,48 @@ def create_input(
         )
         for value in input_item.values or []:
             input.listItems.add(value, value == param.expression, "")
-    elif "group" in input_item.type.value:
+    elif (
+        input_item.type == InputType.GROUP
+        or input_item.type == InputType.GROUP_WITH_CHECKBOX
+    ):
         input = inputs.addGroupCommandInput(input_item_name, input_item.description)
-        input.isExpanded = False
-        if "with_checkbox" in input_item.type.value and param:
+        input.isExpanded = bool(input_item.expanded)
+        if input_item.type == InputType.GROUP_WITH_CHECKBOX and param:
             input.isEnabledCheckBoxDisplayed = True
             input.isEnabledCheckBoxChecked = bool(param.value)
+    elif input_item.type == InputType.TABLE:
+        input = inputs.addTableCommandInput(
+            input_item_name, input_item.description, 3, "1:1:1"
+        )
+        input.minimumVisibleRows = 3
+        input.maximumVisibleRows = 6
+        input.columnSpacing = 1
+        input.rowSpacing = 1
+        input.tablePresentationStyle = (
+            adsk.core.TablePresentationStyles.itemBorderTablePresentationStyle
+        )
+        input.hasGrid = False
+    elif input_item.type == InputType.BUTTON:
+        table: adsk.core.TableCommandInput = (
+            inputs.itemById(prefix + input_item.table) if input_item.table else None
+        )
+        if table and table.classType() == adsk.core.TableCommandInput.classType():
+            input = inputs.addBoolValueInput(
+                input_item_name,
+                input_item.description,
+                False,
+                input_item.icon or "",
+                False,
+            )
+            # input.isEnabled = False
+            table.addToolbarCommandInput(input)
+        else:
+            input = None
+
+        # # table rows
+        # stringInput = inputs.addStringValueInput("string1", "", "Sample Text")
+        # stringInput.isReadOnly = True
+        # table.addCommandInput(stringInput, 0, 0, 0, 0)
     else:
         input = None
         futil.log(
@@ -155,24 +194,24 @@ def create_dialog(inputs: adsk.core.CommandInputs):
 
         for input_item in input_items:
             create_input(tab_input.children, input_item, prefix)
-            set_input_via_userparam(input_item, tab_input.children, prefix)
-    # set width of the dialog so all inputs are
+            if input_item.input_has_no_param == False:
+                set_input_via_userparam(input_item, tab_input.children, prefix)
 
 
 def get_prefixes():
-    input_items_without_groups = [
-        item for item in input_items if item.type != InputType.GROUP
+    input_items_with_params = [
+        item for item in input_items if item.input_has_no_param is False
     ]
     design = adsk.fusion.Design.cast(app.activeProduct)
     userParams = [param.name for param in design.userParameters]
-    param_base_name = input_items_without_groups[0].name
+    param_base_name = input_items_with_params[0].name
     prefixis = {
         param.split(param_base_name)[0]
         for param in userParams
         if param.endswith(param_base_name)
     }
 
-    for input_item in input_items_without_groups[1:]:
+    for input_item in input_items_with_params[1:]:
         if input_item.name is None:
             continue
         param_base_name = input_item.name
@@ -189,21 +228,11 @@ def get_prefixes():
     futil.log(f"found prefixes: {prefixis}")
     return prefixis
 
-    # dropdown = inputs.addDropDownCommandInput(
-    #         "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
-    #     )
-    # for key in presets.keys():
-    #     dropdown.listItems.add(key, False, "")
-
-    # for input_item in input_items:
-    #     create_input(inputs, input_item)
-    #     set_input_via_userparam(input_item, inputs)
-
 
 def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs, prefix: str):
     design = adsk.fusion.Design.cast(app.activeProduct)
     for input_with_user_param in filter(
-        lambda x: x.type != InputType.GROUP, input_items
+        lambda x: x.input_has_no_param != True, input_items
     ):
         input_to_user_parameter(
             design.userParameters, inputs, input_with_user_param, prefix

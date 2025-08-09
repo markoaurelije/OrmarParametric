@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+import os
 from typing import List, NotRequired, Optional, TypedDict
 
 
@@ -18,6 +19,9 @@ class InputType(Enum):
     GROUP = "group"
     GROUP_WITH_CHECKBOX = "group_with_checkbox"
     DROPDOWN = "dropdown"
+    TABLE = "table"
+    # TABLE_TOOLBAR = "table_toolbar"
+    BUTTON = "button"
 
 
 @dataclass
@@ -28,7 +32,14 @@ class InputItem:
     parent: Optional[str] = None
     tooltip: Optional[str] = None
     values: Optional[List[str]] = None
-    dependencies: Optional[List[Dependency]] = field(default_factory=list)
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+    default_value: Optional[float] = None
+    input_has_no_param: bool = False
+    expanded: Optional[bool] = None
+    icon: Optional[str] = None
+    table: Optional[str] = None  # For Table children inputs
+    table_column: Optional[int] = None
 
 
 input_items: list[InputItem] = [
@@ -36,6 +47,7 @@ input_items: list[InputItem] = [
         name="osnovne_dimenzije",
         type=InputType.GROUP,
         description="Osnovne Dimenzije",
+        input_has_no_param=True,
     ),
     InputItem(
         name="sirina",
@@ -65,6 +77,7 @@ input_items: list[InputItem] = [
         name="grupa_bokovi",
         type=InputType.GROUP,
         description="Bokovi",
+        input_has_no_param=True,
     ),
     InputItem(
         name="bokovi_preko_donje_ploce",
@@ -77,12 +90,6 @@ input_items: list[InputItem] = [
         type=InputType.BOOL,
         description="Bokovi preko gornje ploče",
         parent="grupa_bokovi",
-        # dependencies=[
-        #     Dependency(
-        #         name="grupa_ukrute",
-        #         value="0",
-        #         triggerring_value=True,
-        #     )
         # ],
     ),
     InputItem(
@@ -107,13 +114,6 @@ input_items: list[InputItem] = [
         name="gornja_ploca",
         type=InputType.GROUP_WITH_CHECKBOX,
         description="Gornja Ploča",
-        # dependencies=[
-        #     Dependency(
-        #         name="bokovi_preko_gornje_ploce",
-        #         value="1",
-        #         triggerring_value=False,
-        #     )
-        # ],
     ),
     InputItem(
         name="gornja_ploca_debljina",
@@ -142,6 +142,7 @@ input_items: list[InputItem] = [
         name="grupa_ledja",
         type=InputType.GROUP,
         description="Ledja",
+        input_has_no_param=True,
     ),
     InputItem(
         name="ledja_debljina",
@@ -244,41 +245,73 @@ input_items: list[InputItem] = [
         description="Visina cokle",
         parent="cokla",
     ),
+    # InputItem(
+    #     name="ultrabox",
+    #     type=InputType.GROUP,
+    #     description="Ultrabox Ladica",
+    #     input_has_no_param=True,
+    #     expanded=True,
+    # ),
     InputItem(
-        name="ultrabox",
-        type=InputType.GROUP_WITH_CHECKBOX,
-        description="Ultrabox Ladica",
+        name="ultrabox_table",
+        type=InputType.TABLE,
+        description="Konfiguracija ultrabox ladice",
+        input_has_no_param=True,
+        # parent="ultrabox",
     ),
     InputItem(
-        name="ultrabox_duljina",
-        type=InputType.DROPDOWN,
-        description="Duljina ultrabox ladice",
-        values=["270 mm", "350 mm", "400 mm", "450 mm", "500 mm"],
-        parent="ultrabox",
+        name="add_ultrabox",
+        type=InputType.BUTTON,
+        description="Dodaj ultrabox ladicu",
+        icon=os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "resources", "plus"
+        ),
+        input_has_no_param=True,
+        table="ultrabox_table",
     ),
     InputItem(
-        name="ultrabox_visina",
-        type=InputType.DROPDOWN,
-        description="Visina ultrabox ladice",
-        values=["86 mm", "118 mm", "150 mm"],
-        parent="ultrabox",
+        name="remove_ultrabox",
+        type=InputType.BUTTON,
+        description="Izbaci ultrabox ladicu",
+        icon=os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "resources", "remove"
+        ),
+        input_has_no_param=True,
+        table="ultrabox_table",
     ),
-    InputItem(
-        name="ultrabox_fronta_visina",
-        type=InputType.VALUE,
-        description="Visina fronte ultrabox ladice",
-        parent="ultrabox",
-    ),
-    InputItem(
-        name="ultrabox_podnica_debljina",
-        type=InputType.VALUE,
-        description="Debljina podnice ultrabox ladice",
-        parent="ultrabox",
-    ),
-    InputItem(
-        name="ultrabox_fronta_ofset_od_dna",
-        type=InputType.VALUE,
-        description="Ofset fronte ultrabox ladice od dna",
-        parent="ultrabox",
-    ),
+    # InputItem(
+    #     name="ultrabox_duljina",
+    #     type=InputType.DROPDOWN,
+    #     description="Duljina ultrabox ladice",
+    #     values=["270 mm", "350 mm", "400 mm", "450 mm", "500 mm"],
+    #     table="ultrabox_table",
+    #     table_column=1,
+    # ),
+    # InputItem(
+    #     name="ultrabox_visina",
+    #     type=InputType.DROPDOWN,
+    #     description="Visina ultrabox ladice",
+    #     values=["86 mm", "118 mm", "150 mm"],
+    #     table="ultrabox_table",
+    #     table_column=2,
+    # ),
+    # InputItem(
+    #     name="ultrabox_fronta_visina",
+    #     type=InputType.VALUE,
+    #     description="Visina fronte ultrabox ladice",
+    #     table="ultrabox_table",
+    #     table_column=3,
+    # ),
+    # InputItem(
+    #     name="ultrabox_podnica_debljina",
+    #     type=InputType.VALUE,
+    #     description="Debljina podnice ultrabox ladice",
+    #     parent="ultrabox",
+    # ),
+    # InputItem(
+    #     name="ultrabox_fronta_ofset_od_dna",
+    #     type=InputType.VALUE,
+    #     description="Ofset fronte ultrabox ladice od dna",
+    #     parent="ultrabox",
+    # ),
 ]

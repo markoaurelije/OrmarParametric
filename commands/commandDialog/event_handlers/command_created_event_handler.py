@@ -1,3 +1,4 @@
+from collections import defaultdict
 import adsk, adsk.core, adsk.cam
 from ..utils import create_dialog
 from .input_changed_handler import InputChangedHandler

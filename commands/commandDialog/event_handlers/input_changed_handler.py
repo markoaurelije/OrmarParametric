@@ -1,18 +1,13 @@
 import traceback
 import adsk
 import adsk.core
-import adsk.fusion
-import time
+
+from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
 from ....lib import fusionAddInUtils as futil
 
-# from ..inputs_manager import InputsManager
-from ..utils import (
-    add_parametric_component,
-    load_preset,
-    set_input_via_userparam,
-    set_user_parameter,
-)
+from ..utils import add_parametric_component, load_preset
 from ..dialog_config import InputType, input_items
+
 
 persistant_target_design_name = None
 
@@ -68,32 +63,12 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 )
                 persistant_target_design_name = target_design_name
                 return
-
-            # find this input in InputItems list, and check if it has dependencies
-            for input_item in input_items:
-                if input_item.name == changed_input.id:
-                    for dependency in input_item.dependencies:
-                        if input_item.type == InputType.GROUP_WITH_CHECKBOX:
-                            value = changed_input.isEnabledCheckBoxChecked
-                        elif input_item.type == InputType.BOOL:
-                            value = changed_input.value
-                        if dependency.triggerring_value == value:
-                            # find the input that needs changing
-                            d_input = next(
-                                (
-                                    input
-                                    for input in input_items
-                                    if input.name == dependency.name
-                                ),
-                                None,
-                            )
-                            if d_input:
-                                futil.log(
-                                    f"Changing dependency input: {dependency.name} to {dependency.value}"
-                                )
-                                set_user_parameter(d_input.name, dependency.value)
-                                set_input_via_userparam(d_input, self.inputs)
-                    break
+            elif changed_input.id.endswith("add_ultrabox"):
+                prefix = changed_input.id.split("add_ultrabox")[0]
+                futil.log(f"Adding ultrabox with prefix: {prefix}")
+                add_ultrabox(prefix)
+            elif changed_input.id.endswith("remove_ultrabox"):
+                remove_ultrabox()
 
         except:
             app = adsk.core.Application.get()

@@ -2,7 +2,6 @@ import adsk.core
 import os
 
 from .event_handlers.command_created_event_handler import CommandCreatedHandler
-
 from ...lib import fusionAddInUtils as futil
 from ... import config
 
