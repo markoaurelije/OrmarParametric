@@ -219,6 +219,15 @@ def create_dialog(inputs: adsk.core.CommandInputs):
         "newComponentName", "Ime novog ormara", "O1", 1, False
     )
 
+    # Export the cabinets' cut list to an Excel copy of the supplier order form.
+    export_btn = inputs.addBoolValueInput(
+        "exportCutListButton", "Izvezi krojnu listu u Excel", False, "", True
+    )
+    export_btn.tooltip = (
+        "Spremi krojnu listu svih ormara u kopiju narudžbenice (.xlsm) na "
+        "Desktop. Predložak narudzba-excel.xlsm se ne mijenja."
+    )
+
     # Active decor: the colour the paint-bucket applies.  Populated from the
     # decor palette (decors.json).
     decor_dd = inputs.addDropDownCommandInput(

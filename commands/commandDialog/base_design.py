@@ -444,17 +444,12 @@ def spec_name_for_component(comp_name: str):
     return base if base in BANDING_BY_NAME else None
 
 
-def board_banding_counts(comp_name: str, flags: dict, dims):
-    """Reduce a board's banding to the ``(long_count, short_count)`` the cut list
-    needs: how many of the two long edges and two short edges are banded, each in
-    {0, 1, 2}.  ``dims`` is the board's evaluated (dx, dy, dz) size in any single
+def _reduce_banding_counts(plane: str, banded, dims):
+    """Reduce a *set of banded orientations* to ``(long_count, short_count)``,
+    each in {0, 1, 2}: how many of the board's two long edges and two short edges
+    are banded.  ``dims`` is the board's (dx, dy, dz) size in any single
     consistent unit; long/short is decided from the actual geometry so it stays
     correct on deep or tall boards."""
-    name = spec_name_for_component(comp_name)
-    if name is None:
-        return (0, 0)
-    plane = PLANE_BY_NAME[name]
-    banded = resolved_banding(BANDING_BY_NAME[name], flags)
     # A board has exactly two edge pairs; each banded edge belongs to the pair
     # running along one in-plane axis (its length = that axis's dim).  Count per
     # pair first, then label the longer-edge pair "long" -- so the count in each
@@ -468,6 +463,28 @@ def board_banding_counts(comp_name: str, flags: dict, dims):
     a, b = _INPLANE[plane]
     long_idx, short_idx = (a, b) if dims[a] >= dims[b] else (b, a)
     return (per_axis.get(long_idx, 0), per_axis.get(short_idx, 0))
+
+
+def banding_counts_for_orientations(comp_name: str, orientations, dims):
+    """Like ``board_banding_counts`` but from an explicit set of banded edge
+    orientations (e.g. the live/overridden banding the model is painted with),
+    rather than re-deriving it from the rule defaults.  This is what the cut list
+    should use so its counts always match what ``utils.apply_finish`` paints."""
+    name = spec_name_for_component(comp_name)
+    if name is None:
+        return (0, 0)
+    return _reduce_banding_counts(PLANE_BY_NAME[name], set(orientations), dims)
+
+
+def board_banding_counts(comp_name: str, flags: dict, dims):
+    """Reduce a board's rule-default banding to the ``(long_count, short_count)``
+    the cut list needs.  ``dims`` is the board's evaluated (dx, dy, dz) size in
+    any single consistent unit."""
+    name = spec_name_for_component(comp_name)
+    if name is None:
+        return (0, 0)
+    banded = resolved_banding(BANDING_BY_NAME[name], flags)
+    return _reduce_banding_counts(PLANE_BY_NAME[name], banded, dims)
 
 
 def _fmt(expr: str, prefix: str) -> str:

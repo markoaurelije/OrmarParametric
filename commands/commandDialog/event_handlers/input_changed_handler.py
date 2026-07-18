@@ -3,6 +3,7 @@ import adsk
 import adsk.core
 
 from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
+from ...commandDialog import excel_export
 from ....lib import fusionAddInUtils as futil
 
 from ..utils import (
@@ -85,6 +86,25 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 # the cabinet is generated from code into the active design,
                 # so no target-design lookup is needed anymore
                 request_add_cabinet(new_name.text if new_name else "Ox")
+                return
+            elif changed_input.id == "exportCutListButton":
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                try:
+                    output_path = excel_export.export_cut_list()
+                except Exception:
+                    ui.messageBox(
+                        "Izvoz krojne liste nije uspio:\n{}".format(
+                            traceback.format_exc()
+                        )
+                    )
+                else:
+                    if output_path:
+                        ui.messageBox(f"Krojna lista spremljena:\n{output_path}")
+                    else:
+                        ui.messageBox(
+                            "Nema ormara za izvoz u ovom dizajnu."
+                        )
                 return
             elif changed_input.id.endswith("_fronta"):
                 # When the Fronta group checkbox is turned ON, ensure at least
