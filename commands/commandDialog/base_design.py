@@ -44,6 +44,8 @@ defaults; ``utils.apply_finish`` colours faces + edges from them, and
 list needs.
 """
 
+import math
+
 import adsk.core
 import adsk.fusion
 
@@ -131,6 +133,11 @@ _FRONT = "({p}bok_desno_dubina - {p}ledja_debljina)"
 _BOK_Z = "{p}donja_ploca_debljina - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - " + _CK
 # Z of the bottom edge of a (closed) door
 _DOOR_Z = "{p}fronta_ofset + if({p}fronta_pokriva_donju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}donja_ploca_debljina)"
+
+# How far a door may swing on its revolute joint (0 deg = closed).  The door is
+# limited to the outward direction only (0..MAX for a +open door, -MAX..0 for a
+# -open one, given by the panel's "open_dir"), so it can't rotate into the box.
+_DOOR_OPEN_MAX_DEG = 110.0
 
 # Each panel: component name, sketch plane, box size along root X/Y/Z, and the
 # position of the box's min corner in the parent frame.  plane "XY" extrudes
@@ -256,6 +263,12 @@ PANELS = [
         # (its big faces point +/-Y), so its four narrow edges are the
         # left/right verticals and the top/bottom horizontals.
         "banding": {"left": True, "right": True, "top": True, "bottom": True},
+        # Swings on a revolute joint about the vertical (Z) axis at its outer
+        # (cabinet-side) edge.  This panel sits on the cabinet's left half
+        # (its origin corner is the outer edge), so the hinge is at offset 0.
+        # It opens in the +angle direction, limited to 0..110 deg.
+        "hinge_offset": "0 mm",
+        "open_dir": +1,
     },
     {
         "name": "fronta lijevo",
@@ -269,6 +282,12 @@ PANELS = [
         "light_bulb": False,
         # a door: exposed on all four narrow edges (see "fronta desno")
         "banding": {"left": True, "right": True, "top": True, "bottom": True},
+        # Swings on a revolute joint about the vertical (Z) axis at its outer
+        # (cabinet-side) edge.  This panel sits on the cabinet's right half
+        # (its outer edge is origin + width), so the hinge is at that offset.
+        # It opens in the -angle direction, limited to -110..0 deg.
+        "hinge_offset": "{p}fronta_lijevo_sirina",
+        "open_dir": -1,
     },
 ]
 
@@ -525,17 +544,33 @@ def _build_panel(parent_comp: adsk.fusion.Component, spec: dict, prefix: str,
 
 def _position_occurrence(parent_comp: adsk.fusion.Component,
                          occ: adsk.fusion.Occurrence,
-                         pos, prefix: str, name: str):
+                         pos, prefix: str, name: str,
+                         hinge_offset: str = None, open_dir: int = None):
     """Pin an occurrence to an expression-driven point of the parent frame
-    via a joint origin + rigid joint."""
+    via a joint origin + joint.
+
+    Normally a rigid joint (part follows the parent frame exactly).  When
+    `hinge_offset` is given (an X-distance expression from the part's origin
+    corner to its hinge edge), a **revolute** joint about the vertical (Z)
+    axis is built instead so a door can swing -- matching the original J1
+    design.  Both joint origins are shifted by the same hinge offset, so the
+    door's closed position is unchanged but the pivot lands on the hinge edge.
+
+    `open_dir` (+1 / -1) is the outward-opening sign of a hinged door; when
+    given, the revolute joint is limited to 0..110 deg in that direction so
+    the door swings open but never rotates into the cabinet.
+    """
     if pos is None:
         return  # grounded part, stays at the parent origin
     px, py, pz = (_fmt(e, prefix) for e in pos)
     V = adsk.core.ValueInput
 
+    hinge = _fmt(hinge_offset, prefix) if hinge_offset is not None else None
+    parent_x = px if hinge is None else "(" + px + ") + (" + hinge + ")"
+
     geo_parent = adsk.fusion.JointGeometry.createByPoint(parent_comp.originConstructionPoint)
     jo_input = parent_comp.jointOrigins.createInput(geo_parent)
-    jo_input.offsetX = V.createByString(px)
+    jo_input.offsetX = V.createByString(parent_x)
     jo_input.offsetY = V.createByString(py)
     jo_input.offsetZ = V.createByString(pz)
     jo_parent = parent_comp.jointOrigins.add(jo_input)
@@ -546,16 +581,32 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     geo_child = adsk.fusion.JointGeometry.createByPoint(
         comp.originConstructionPoint.createForAssemblyContext(occ)
     )
-    jo_child = comp.jointOrigins.add(comp.jointOrigins.createInput(geo_child))
+    child_input = comp.jointOrigins.createInput(geo_child)
+    if hinge is not None:
+        child_input.offsetX = V.createByString(hinge)
+    jo_child = comp.jointOrigins.add(child_input)
     jo_child.isLightBulbOn = False
     occ.isGroundToParent = False
     joint_input = parent_comp.joints.createInput(
         jo_child.createForAssemblyContext(occ), jo_parent
     )
-    joint_input.setAsRigidJointMotion()
+    if hinge is None:
+        joint_input.setAsRigidJointMotion()
+    else:
+        joint_input.setAsRevoluteJointMotion(
+            adsk.fusion.JointDirections.ZAxisJointDirection
+        )
     joint = parent_comp.joints.add(joint_input)
     joint.name = name
     joint.isLightBulbOn = False
+
+    if hinge is not None and open_dir:
+        max_rad = math.radians(_DOOR_OPEN_MAX_DEG)
+        limits = joint.jointMotion.rotationLimits
+        limits.isMinimumValueEnabled = True
+        limits.isMaximumValueEnabled = True
+        limits.minimumValue = 0.0 if open_dir > 0 else -max_rad
+        limits.maximumValue = max_rad if open_dir > 0 else 0.0
 
 
 def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
@@ -573,7 +624,8 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     occurrences = {}
     for spec in PANELS:
         occ = _build_panel(root, spec, prefix, units)
-        _position_occurrence(root, occ, spec["pos"], prefix, spec["name"])
+        _position_occurrence(root, occ, spec["pos"], prefix, spec["name"],
+                             spec.get("hinge_offset"), spec.get("open_dir"))
         occurrences[spec["name"]] = occ
 
     # --- stiffeners: "ukrute" wrapper with two "ukruta otraga" children ----
