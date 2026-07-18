@@ -343,12 +343,14 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     jo_input.offsetZ = V.createByString(pz)
     jo_parent = parent_comp.jointOrigins.add(jo_input)
     jo_parent.name = "pos " + name
+    jo_parent.isLightBulbOn = False
 
     comp = occ.component
     geo_child = adsk.fusion.JointGeometry.createByPoint(
         comp.originConstructionPoint.createForAssemblyContext(occ)
     )
     jo_child = comp.jointOrigins.add(comp.jointOrigins.createInput(geo_child))
+    jo_child.isLightBulbOn = False
     occ.isGroundToParent = False
     joint_input = parent_comp.joints.createInput(
         jo_child.createForAssemblyContext(occ), jo_parent
@@ -356,6 +358,7 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     joint_input.setAsRigidJointMotion()
     joint = parent_comp.joints.add(joint_input)
     joint.name = name
+    joint.isLightBulbOn = False
 
 
 def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
