@@ -129,6 +129,29 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                         futil.log(
                             f"Fronta ON: auto-enabled {prefix}fronta_desna"
                         )
+            elif changed_input.id.endswith("_nogice"):
+                # Legs and plinth are mutually exclusive: turning legs ON
+                # switches the plinth (cokla) OFF for this cabinet.
+                prefix = changed_input.id[: -len("nogice")]
+                grp = adsk.core.GroupCommandInput.cast(changed_input)
+                if grp and grp.isEnabledCheckBoxChecked:
+                    cokla = adsk.core.GroupCommandInput.cast(
+                        self.inputs.itemById(prefix + "cokla")
+                    )
+                    if cokla and cokla.isEnabledCheckBoxChecked:
+                        cokla.isEnabledCheckBoxChecked = False
+                        futil.log(f"Nogice ON: auto-disabled {prefix}cokla")
+            elif changed_input.id.endswith("_cokla"):
+                # ...and symmetrically, turning the plinth ON switches legs OFF.
+                prefix = changed_input.id[: -len("cokla")]
+                grp = adsk.core.GroupCommandInput.cast(changed_input)
+                if grp and grp.isEnabledCheckBoxChecked:
+                    nogice = adsk.core.GroupCommandInput.cast(
+                        self.inputs.itemById(prefix + "nogice")
+                    )
+                    if nogice and nogice.isEnabledCheckBoxChecked:
+                        nogice.isEnabledCheckBoxChecked = False
+                        futil.log(f"Cokla ON: auto-disabled {prefix}nogice")
             elif changed_input.id.endswith("_delete_cabinet"):
                 prefix = changed_input.id[: -len("delete_cabinet")]
                 futil.log(f"Deleting cabinet with prefix: {prefix}")

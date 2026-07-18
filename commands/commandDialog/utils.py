@@ -393,6 +393,7 @@ def set_component_visibility(prefix):
     lijevo_otvaranje = design.userParameters.itemByName(prefix + "fronta_lijeva")
     desno_otvaranje = design.userParameters.itemByName(prefix + "fronta_desna")
     cokla_presence = design.userParameters.itemByName(prefix + "cokla")
+    nogice_presence = design.userParameters.itemByName(prefix + "nogice")
     pregrada_presence = design.userParameters.itemByName(prefix + "pregrada")
     police_presence = design.userParameters.itemByName(prefix + "police")
 
@@ -402,6 +403,7 @@ def set_component_visibility(prefix):
     lijevaFrontaComp = None
     desnaFrontaComp = None
     coklaComp = None
+    nogiceComp = None
     pregradaComp = None
     policaComp = []
     components_to_find = [
@@ -439,6 +441,8 @@ def set_component_visibility(prefix):
             desnaFrontaComp = occurrence
         elif occurrence.component.name.startswith("cokla"):
             coklaComp = occurrence
+        elif occurrence.component.name.startswith("nogice"):
+            nogiceComp = occurrence
         elif occurrence.component.name.startswith("pregrada"):
             pregradaComp = occurrence
         elif occurrence.component.name.startswith("polica"):
@@ -468,6 +472,9 @@ def set_component_visibility(prefix):
 
     if cokla_presence and coklaComp:
         coklaComp.isLightBulbOn = bool(cokla_presence.value)
+
+    if nogice_presence and nogiceComp:
+        nogiceComp.isLightBulbOn = bool(nogice_presence.value)
 
     if pregradaComp and pregrada_presence:
         pregradaComp.isLightBulbOn = bool(pregrada_presence.value)

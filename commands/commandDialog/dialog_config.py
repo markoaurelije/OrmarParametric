@@ -245,6 +245,32 @@ input_items: list[InputItem] = [
         description="Visina cokle",
         parent="cokla",
     ),
+    # Legs (nogice): mutually exclusive with the plinth (cokla) -- turning one
+    # on switches the other off (handled in input_changed_handler).
+    InputItem(
+        name="nogice",
+        type=InputType.GROUP_WITH_CHECKBOX,
+        description="Nogice",
+        tooltip="Četiri nogice u kutovima donje ploče (isključuje coklu)",
+    ),
+    InputItem(
+        name="nogice_visina",
+        type=InputType.VALUE,
+        description="Visina nogica",
+        parent="nogice",
+    ),
+    InputItem(
+        name="nogice_promjer",
+        type=InputType.VALUE,
+        description="Promjer nogica",
+        parent="nogice",
+    ),
+    InputItem(
+        name="nogice_odmak",
+        type=InputType.VALUE,
+        description="Odmak nogica od ruba",
+        parent="nogice",
+    ),
     # InputItem(
     #     name="ultrabox",
     #     type=InputType.GROUP,

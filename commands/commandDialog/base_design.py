@@ -64,9 +64,9 @@ USER_PARAMS = [
     ("{p}gornja_debljina", "( if({p}gornja_ploca; {p}gornja_ploca_debljina; 0.1 mm) )", "mm"),
     ("{p}fronta_lijevo_sirina", "if({p}fronta_desna; {p}sirina / 2; {p}sirina) - if({p}fronta_unutarnje_pokrivanje; if({p}fronta_desna; 0 mm; {p}bok_desno_debljina) + {p}bok_lijevo_debljina; 0 mm) - {p}fronta_ofset * if({p}fronta_desna; 1.5; 2)", "mm"),
     ("{p}donja_ploca_debljina", "18.0 mm", "mm"),
-    ("{p}fronta_visina", "{p}visina - 2 * {p}fronta_ofset - if({p}fronta_pokriva_gornju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}gornja_debljina) - if({p}fronta_pokriva_donju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}donja_ploca_debljina) - if({p}cokla; {p}cokla_visina; 0 mm)", "mm"),
+    ("{p}fronta_visina", "{p}visina - 2 * {p}fronta_ofset - if({p}fronta_pokriva_gornju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}gornja_debljina) - if({p}fronta_pokriva_donju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}donja_ploca_debljina) - ( if({p}cokla; {p}cokla_visina; 0 mm) + if({p}nogice; {p}nogice_visina; 0 mm) )", "mm"),
     ("{p}donja_ploca_dubina", "{p}dubina - {p}ledja_debljina - if({p}fronta_pokriva_donju_plocu and not({p}fronta_unutarnje_pokrivanje); {p}fronta_debljina; 0 mm) - {p}ledja_upust", "mm"),
-    ("{p}bok_visina", "{p}visina - if({p}bokovi_preko_donje_ploce; 0 mm; {p}donja_ploca_debljina) - if({p}bokovi_preko_gornje_ploce; 0 mm; {p}gornja_ploca_debljina)", "mm"),
+    ("{p}bok_visina", "{p}visina - if({p}bokovi_preko_donje_ploce; 0 mm; {p}donja_ploca_debljina) - if({p}bokovi_preko_gornje_ploce; 0 mm; {p}gornja_ploca_debljina) - if({p}nogice; {p}nogice_visina; 0 mm)", "mm"),
     ("{p}bok_desno_dubina", "{p}dubina - {p}ledja_debljina - if({p}fronta_unutarnje_pokrivanje; 0 mm; {p}fronta_debljina)", "mm"),
     ("{p}sirina", "100.00 cm", "mm"),
     ("{p}bok_desno_debljina", "18.0 mm", "cm"),
@@ -77,11 +77,11 @@ USER_PARAMS = [
     ("{p}polica_sirina", "{p}sirina - {p}bok_desno_debljina - {p}bok_lijevo_debljina - {p}polica_suzenje", "cm"),
     ("{p}polica_debljina", "1.8 cm", "cm"),
     ("{p}broj_polica", "2", ""),
-    ("{p}polica_ofset_visina", "( {p}visina - {p}gornja_debljina - {p}donja_ploca_debljina - if({p}cokla; {p}cokla_visina; 0 mm) - ( {p}broj_polica * {p}polica_debljina ) ) / ( {p}broj_polica + 1 )", "cm"),
+    ("{p}polica_ofset_visina", "( {p}visina - {p}gornja_debljina - {p}donja_ploca_debljina - ( if({p}cokla; {p}cokla_visina; 0 mm) + if({p}nogice; {p}nogice_visina; 0 mm) ) - ( {p}broj_polica * {p}polica_debljina ) ) / ( {p}broj_polica + 1 )", "cm"),
     ("{p}gornja_ploca", "1", ""),
     ("{p}gornja_ploca_debljina", "18.0 mm", "mm"),
     ("{p}ukrute", "1", ""),
-    ("{p}ledja_visina", "if({p}ukrute; {p}visina - {p}gornja_ploca * {p}gornja_debljina; {p}visina) - 2 * {p}ledja_ofset - if({p}cokla; {p}cokla_visina; 0 mm)", "cm"),
+    ("{p}ledja_visina", "if({p}ukrute; {p}visina - {p}gornja_ploca * {p}gornja_debljina; {p}visina) - 2 * {p}ledja_ofset - ( if({p}cokla; {p}cokla_visina; 0 mm) + if({p}nogice; {p}nogice_visina; 0 mm) )", "cm"),
     ("{p}ukruta_sirina", "80.0 mm", "cm"),
     ("{p}ukruta_duljina", "{p}sirina - {p}bok_desno_debljina - {p}bok_lijevo_debljina", "cm"),
     ("{p}gornja_ploca_dubina", "{p}dubina + {p}gornja_napust - if({p}ukrute; 0 mm; {p}ledja_debljina) - if({p}fronta_pokriva_gornju_plocu and not({p}fronta_unutarnje_pokrivanje); {p}fronta_debljina; 0 mm) - {p}ledja_upust", "cm"),
@@ -105,6 +105,13 @@ USER_PARAMS = [
     ("{p}fronta_desno_sirina", "if({p}fronta_lijeva; {p}sirina / 2; {p}sirina) - if({p}fronta_unutarnje_pokrivanje; if({p}fronta_lijeva; 0 mm; {p}bok_lijevo_debljina) + {p}bok_desno_debljina; 0 mm) - {p}fronta_ofset * if({p}fronta_lijeva; 1.5; 2)", "mm"),
     ("{p}cokla_visina", "50.0 mm", "mm"),
     ("{p}cokla", "1", ""),
+    # cabinet legs (nogice): mutually exclusive with the plinth (cokla).  Four
+    # cylindrical feet lift the carcass off the floor by nogice_visina, filling
+    # the same vertical zone the plinth would; default off (cokla is on).
+    ("{p}nogice", "0", ""),
+    ("{p}nogice_visina", "100.0 mm", "mm"),
+    ("{p}nogice_promjer", "40.0 mm", "mm"),
+    ("{p}nogice_odmak", "35.0 mm", "mm"),
     ("{p}pregrada_visina", "{p}bok_visina - if({p}cokla; {p}cokla_visina; 0 mm) - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - -if({p}bokovi_preko_gornje_ploce; {p}gornja_debljina; 0 mm)", "mm"),
     ("{p}pregrada", "0", ""),
     ("{p}police", "0", ""),
@@ -120,8 +127,14 @@ USER_PARAMS = [
 # ---------------------------------------------------------------------------
 # Shared expression fragments.
 # ---------------------------------------------------------------------------
-# height of the plinth, 0 when disabled
+# height of the plinth, 0 when disabled.  This is the *side-skirt* height: only
+# a plinth extends the side panels down to the floor, so _BOK_Z uses this alone.
 _CK = "if({p}cokla; {p}cokla_visina; 0 mm)"
+# overall height the carcass is lifted off the floor: the plinth OR the legs
+# (mutually exclusive), whichever is enabled.  The legs occupy the same vertical
+# zone the plinth would, so the top of the cabinet rises by this either way;
+# unlike a plinth, legs do NOT extend the sides down (see _CK / bok_visina).
+_LIFT = "( if({p}cokla; {p}cokla_visina; 0 mm) + if({p}nogice; {p}nogice_visina; 0 mm) )"
 # X of the inner face of "bok desno" (0 when the sides run past the bottom
 # panel, otherwise the sides stand on top of it and shift right)
 _XI = "if({p}bokovi_preko_donje_ploce; 0 mm; {p}bok_desno_debljina)"
@@ -203,7 +216,7 @@ PANELS = [
         "pos": (
             _XI + " - if({p}bokovi_preko_gornje_ploce; 0 mm; {p}bok_desno_debljina)",
             "-if({p}ukrute; {p}ledja_debljina; 0 mm)",
-            "{p}visina - " + _CK + " - {p}gornja_debljina",
+            "{p}visina - " + _LIFT + " - {p}gornja_debljina",
         ),
         # front edge always shows; side edges only when the top runs full
         # width (sides do not run past it); back edge faces the wall.  Front
@@ -299,12 +312,28 @@ UKRUTA = {
     # hidden under the top/counter
     "banding": {},
 }
-_UKRUTA_Z = "{p}visina - " + _CK + " - {p}gornja_debljina - if({p}ukrute; {p}debljina_ploce; 0.1 mm)"
+_UKRUTA_Z = "{p}visina - " + _LIFT + " - {p}gornja_debljina - if({p}ukrute; {p}debljina_ploce; 0.1 mm)"
 UKRUTA_POSITIONS = [
     # back stiffener, against the back panel
     (_XI, "0 mm", _UKRUTA_Z),
     # front stiffener, behind the fronts
     (_XI, _FRONT + " - {p}ukruta_sirina - if({p}fronta_unutarnje_pokrivanje; {p}fronta_debljina; 0 mm)", _UKRUTA_Z),
+]
+
+# Cabinet legs (nogice): four cylindrical feet, one under each corner of the
+# bottom panel (donja_ploca spans X:[0, donja_sirina], Y:[0, donja_ploca_dubina]
+# in the cabinet frame), inset from every edge by nogice_odmak.  Each leg's
+# component origin is its axis centre at the top (Z = 0, the underside of the
+# bottom board); the leg extrudes downward by nogice_visina into the base zone.
+_LEG_X_RIGHT = "{p}nogice_odmak"
+_LEG_X_LEFT = "{p}donja_sirina - {p}nogice_odmak"
+_LEG_Y_BACK = "{p}nogice_odmak"
+_LEG_Y_FRONT = "{p}donja_ploca_dubina - {p}nogice_odmak"
+LEG_POSITIONS = [
+    (_LEG_X_RIGHT, _LEG_Y_BACK, "0 mm"),
+    (_LEG_X_RIGHT, _LEG_Y_FRONT, "0 mm"),
+    (_LEG_X_LEFT, _LEG_Y_BACK, "0 mm"),
+    (_LEG_X_LEFT, _LEG_Y_FRONT, "0 mm"),
 ]
 
 # Ultrabox drawer sub-assembly: children positioned relative to the wrapper
@@ -559,6 +588,42 @@ def _build_panel(parent_comp: adsk.fusion.Component, spec: dict, prefix: str,
     return occ
 
 
+def _build_leg(parent_comp: adsk.fusion.Component, prefix: str,
+               units) -> adsk.fusion.Occurrence:
+    """Create a 'noga' cylinder component: a leg of diameter nogice_promjer
+    extruded downward (-Z) by nogice_visina from the component origin.  The
+    origin sits at the top-face axis centre, so positioning the occurrence's
+    origin drops the leg straight down from that point (see LEG_POSITIONS)."""
+    occ = parent_comp.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    comp = occ.component
+    comp.name = "noga"
+
+    diam_expr = _fmt("{p}nogice_promjer", prefix)
+    r0 = units.evaluateExpression(diam_expr, "cm") / 2
+
+    sketch = comp.sketches.add(comp.xYConstructionPlane)
+    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
+        adsk.core.Point3D.create(0, 0, 0), r0
+    )
+    sketch.geometricConstraints.addCoincident(
+        circle.centerSketchPoint, sketch.originPoint
+    )
+    dim = sketch.sketchDimensions.addDiameterDimension(
+        circle, adsk.core.Point3D.create(r0, 0, 0)
+    )
+    dim.parameter.expression = diam_expr
+
+    extrudes = comp.features.extrudeFeatures
+    ext_input = extrudes.createInput(
+        sketch.profiles.item(0), adsk.fusion.FeatureOperations.NewBodyFeatureOperation
+    )
+    ext_input.setDistanceExtent(
+        False, adsk.core.ValueInput.createByString(_fmt("-{p}nogice_visina", prefix))
+    )
+    extrudes.add(ext_input)
+    return occ
+
+
 def _position_occurrence(parent_comp: adsk.fusion.Component,
                          occ: adsk.fusion.Occurrence,
                          pos, prefix: str, name: str,
@@ -725,6 +790,22 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
         _position_occurrence(ultrabox_comp, child, spec["pos"], prefix, spec["name"])
     _position_occurrence(root, ultrabox_occ, ULTRABOX_POS, prefix, "Ultrabox")
     ultrabox_occ.isLightBulbOn = False
+
+    # --- legs (nogice): "nogice" wrapper with four "noga" corner cylinders --
+    # Each leg is its OWN component (not one component instanced four times):
+    # a shared component's joint origins appear as a separate proxy in every
+    # instance, and the native isLightBulbOn=False set in _position_occurrence
+    # only hides the native copy -- the other instances' proxies stay visible.
+    # Giving each leg its own component keeps every joint origin native (hidden),
+    # just like the panels.  Off by default (the plinth is on).
+    nogice_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    nogice_comp = nogice_occ.component
+    nogice_comp.name = "nogice"
+    for i, pos in enumerate(LEG_POSITIONS):
+        leg_occ = _build_leg(nogice_comp, prefix, units)
+        _position_occurrence(nogice_comp, leg_occ, pos, prefix, f"noga {i + 1}")
+    occurrences["nogice"] = nogice_occ
+    nogice_occ.isLightBulbOn = False
 
     # --- initial visibility, matching the flag parameters -----------------
     for spec in PANELS:
