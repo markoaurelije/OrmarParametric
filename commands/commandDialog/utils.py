@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Optional
 import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
@@ -216,6 +217,47 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
     inputs.addTextBoxCommandInput(
         "newComponentName", "Ime novog ormara", "O1", 1, False
+    )
+
+    # Active decor: the colour the paint-bucket applies.  Populated from the
+    # decor palette (decors.json).
+    decor_dd = inputs.addDropDownCommandInput(
+        "finish_active_decor", "Boja", adsk.core.DropDownStyles.TextListDropDownStyle
+    )
+    for name in _DECOR_ORDER:
+        decor_dd.listItems.add(name, name == _DEFAULT_FRONT, "")
+    if decor_dd.listItems.count and decor_dd.selectedItem is None:
+        decor_dd.listItems.item(0).isSelected = True
+    decor_dd.tooltip = (
+        "Boja koja se nanosi kad klikneš ploču. Uredi paletu u decors.json."
+    )
+
+    # Click-to-colour: pick a board in the viewport to paint it the active decor
+    # (pick 'Bijela' to send it back to interior white).  It is a momentary
+    # picker -- the click sets the board's per-cabinet decor and the selection is
+    # cleared immediately; the model itself shows each board's colour.
+    paint_sel = inputs.addSelectionInput(
+        "finish_paint_select", "Oboji ploču", "Klikni ploču za bojanje"
+    )
+    paint_sel.addSelectionFilter("SolidFaces")
+    paint_sel.setSelectionLimits(0, 0)
+    paint_sel.tooltip = (
+        "Klikni ploču u modelu da je obojiš u odabranu boju ('Boja' gore). "
+        "Odaberi 'Bijela' pa klikni da je vratiš u bijelo. Fronte i gornja ploča "
+        "su obojane po defaultu."
+    )
+
+    # Click-to-band: pick a narrow edge face to band it in the active decor
+    # (click again with the same decor to make it raw).
+    band_sel = inputs.addSelectionInput(
+        "finish_band_select", "Kantiraj rub", "Klikni rub (usku plohu) za kantiranje"
+    )
+    band_sel.addSelectionFilter("SolidFaces")
+    band_sel.setSelectionLimits(0, 0)
+    band_sel.tooltip = (
+        "Klikni usku plohu (rub) ploče da je kantiraš u odabranoj boji ('Boja' "
+        "gore) -- neovisno o boji ploče. Klikni ponovno istom bojom da rub "
+        "postane nekantiran (prugast)."
     )
 
     prefixis = get_prefixes()
@@ -442,6 +484,469 @@ def set_component_visibility(prefix):
                     )
                     feature.isSuppressed = not pregradaComp.isLightBulbOn
                     break
+
+
+# ---------------------------------------------------------------------------
+# Board finish (colour) + edge-banding (kantiranje) visualisation.
+#
+# Each board is painted so the model reads like the real cabinet:
+#   * broad faces  -> finish COLOUR if the board is "coloured" (visible outside),
+#                     otherwise WHITE (interior board).
+#   * banded edges -> finish COLOUR (the edge-band tape).
+#   * raw edges    -> a STRIPED texture, so "no banding here" is unmistakable and
+#                     never confused with a white board face.
+#
+# Each board carries a *decor* (a named colour from the palette in decors.json).
+# Which boards are coloured by default and which edges are banded comes from
+# base_design (defaults + board_rules.json), re-evaluated against the cabinet's
+# live flag parameters every preview.  Per-cabinet user overrides -- the decor a
+# board was painted with, and per-edge banding -- are stored as occurrence
+# attributes and win over the defaults.  apply_finish mirrors
+# set_component_visibility: it runs after the parameters are pushed, on every
+# preview and on execute.  A board's faces AND its banded edges are painted its
+# decor colour; raw edges get the striped 'no banding' texture.
+# ---------------------------------------------------------------------------
+_STRIPE_APPEARANCE_NAME = "Ormar - bez kanta"   # striped 'no banding' edge
+_STRIPE_FALLBACK_RGB = (120, 120, 120)  # if the striped texture can't be built
+_STRIPE_PNG = os.path.join(
+    os.path.dirname(__file__), "resources", "textures", "no_banding.png"
+)
+_STRIPE_SIZE_MM = 6.0  # physical stripe tile size, small enough to read on edges
+
+# --- decor palette (decors.json) -------------------------------------------
+_DECORS = {}          # name -> {"rgb": (r,g,b), "code": str}
+_DECOR_ORDER = []     # decor names in palette order (for the dropdown)
+_DEFAULT_FRONT = "Boja"     # decor for coloured boards, overridden by the file
+_DEFAULT_INTERIOR = "Bijelo"  # decor for interior/white boards
+_DECOR_FALLBACK_RGB = (200, 200, 200)
+
+
+def _load_decors():
+    """Load the decor palette from decors.json; keep a small built-in fallback."""
+    global _DEFAULT_FRONT, _DEFAULT_INTERIOR
+    _DECORS.clear()
+    _DECOR_ORDER.clear()
+    path = os.path.join(os.path.dirname(__file__), "decors.json")
+    data = None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = None
+    if not data:
+        data = {
+            "default_front": "Hrast",
+            "default_interior": "Bijela",
+            "decors": [
+                {"name": "Bijela", "rgb": [244, 244, 240], "code": ""},
+                {"name": "Hrast", "rgb": [196, 160, 106], "code": ""},
+            ],
+        }
+    for entry in data.get("decors", []):
+        name = entry.get("name")
+        if not name:
+            continue
+        rgb = tuple(entry.get("rgb", _DECOR_FALLBACK_RGB))[:3]
+        _DECORS[name] = {"rgb": rgb, "code": entry.get("code", "")}
+        _DECOR_ORDER.append(name)
+    _DEFAULT_FRONT = data.get("default_front") or (_DECOR_ORDER[-1] if _DECOR_ORDER else "Hrast")
+    _DEFAULT_INTERIOR = data.get("default_interior") or (_DECOR_ORDER[0] if _DECOR_ORDER else "Bijela")
+
+
+_load_decors()
+
+
+def decor_rgb(name):
+    """Preview RGB for a decor name (fallback grey for unknown names)."""
+    entry = _DECORS.get(name)
+    return entry["rgb"] if entry else _DECOR_FALLBACK_RGB
+
+# per-cabinet user overrides live in attributes under these groups:
+_FINISH_ATTR_GROUP = "OrmarFinish"    # which boards are coloured (per spec name)
+_BANDING_ATTR_GROUP = "OrmarBanding"  # which edges are banded ("<spec>:<orient>")
+
+_FACE_TOL = 0.1  # cm; a face this close to the bbox extreme is an outer face
+
+# world axis + sign -> edge orientation. +X points from "bok desno" toward
+# "bok lijevo", +Y toward the cabinet front, +Z up (see base_design frame).
+_ORIENTATION_AXIS = {
+    (0, 1): "left", (0, -1): "right",
+    (1, 1): "front", (1, -1): "back",
+    (2, 1): "top", (2, -1): "bottom",
+}
+_ALL_ORIENTATIONS = ("front", "back", "left", "right", "top", "bottom")
+
+
+def _appearance_library():
+    """The library that holds appearances; its exact name varies by Fusion
+    version/locale ("Fusion Appearance Library", "Fusion 360 Appearance ...")."""
+    libs = app.materialLibraries
+    for i in range(libs.count):
+        lib = libs.item(i)
+        if "Appearance" in lib.name and lib.appearances.count:
+            return lib
+    for i in range(libs.count):
+        if libs.item(i).appearances.count:
+            return libs.item(i)
+    return None
+
+
+def _get_or_create_solid_appearance(design, name, rgb):
+    """A named solid-colour appearance, created once by copying a plain library
+    appearance and recolouring it."""
+    appr = design.appearances.itemByName(name)
+    if appr:
+        return appr
+    lib = _appearance_library()
+    if lib is None:
+        return None
+    base = None
+    for candidate in ("ABS (White)", "Plastic - Matte (White)",
+                      "Powder Coat (Gloss - White)", "Paint - Enamel Glossy (White)"):
+        base = lib.appearances.itemByName(candidate)
+        if base:
+            break
+    if base is None:
+        base = lib.appearances.item(0)
+    if base is None:
+        return None
+    appr = design.appearances.addByCopy(base, name)
+    for i in range(appr.appearanceProperties.count):
+        prop = appr.appearanceProperties.item(i)
+        if isinstance(prop, adsk.core.ColorProperty):
+            prop.value = adsk.core.Color.create(rgb[0], rgb[1], rgb[2], 255)
+            break
+    return appr
+
+
+def _get_or_create_stripe_appearance(design, name):
+    """A named appearance carrying the diagonal-stripe 'no banding' texture.
+    Built by copying a library appearance that already has an image texture on
+    its Colour ("Fabric (Grey)") and swapping in resources/textures/no_banding.png;
+    falls back to a solid grey if that isn't possible."""
+    appr = design.appearances.itemByName(name)
+    if appr:
+        return appr
+    lib = _appearance_library()
+    base = lib.appearances.itemByName("Fabric (Grey)") if lib else None
+    if base is None or not os.path.exists(_STRIPE_PNG):
+        return _get_or_create_solid_appearance(design, name, _STRIPE_FALLBACK_RGB)
+    appr = design.appearances.addByCopy(base, name)
+    try:
+        cp = appr.appearanceProperties.itemByName("Color")
+        if cp and cp.hasConnectedTexture:
+            tex = cp.connectedTexture
+            tex.changeTextureImage(_STRIPE_PNG)
+            for prop_name in ("Sample Size", "Size Y"):
+                pp = tex.properties.itemByName(prop_name)
+                if pp:
+                    pp.value = _STRIPE_SIZE_MM
+    except Exception as e:
+        futil.log(f"apply_finish: stripe texture setup failed: {e}")
+    return appr
+
+
+def _bbox_frame(body):
+    """(lo, hi, center, thickness_axis) for a board body in its current context."""
+    bb = body.boundingBox
+    lo = (bb.minPoint.x, bb.minPoint.y, bb.minPoint.z)
+    hi = (bb.maxPoint.x, bb.maxPoint.y, bb.maxPoint.z)
+    center = tuple((hi[i] + lo[i]) / 2.0 for i in range(3))
+    thickness_axis = min(range(3), key=lambda i: hi[i] - lo[i])
+    return lo, hi, center, thickness_axis
+
+
+def _classify_face(frame, face):
+    """Classify a planar face of a board box as ('big', None) for a broad face,
+    ('edge', orientation) for one of the four narrow outer edges, or
+    (None, None) for a recessed/interior face (groove/slot).  Same geometry used
+    by _paint_board and by the edge-banding picker so they always agree."""
+    lo, hi, center, thickness_axis = frame
+    c = face.centroid
+    cc = (c.x, c.y, c.z)
+    d = tuple(cc[i] - center[i] for i in range(3))
+    axis = max(range(3), key=lambda i: abs(d[i]))
+    sign = 1 if d[axis] > 0 else -1
+    extreme = hi[axis] if sign > 0 else lo[axis]
+    if abs(cc[axis] - extreme) > _FACE_TOL:
+        return (None, None)  # recessed
+    if axis == thickness_axis:
+        return ("big", None)
+    return ("edge", _ORIENTATION_AXIS[(axis, sign)])
+
+
+def _paint_board(body, appr_face, band_appr_by_orient, appr_stripe):
+    """Paint one board body: big faces get the board's decor appearance; each
+    narrow edge gets its band-colour appearance (from band_appr_by_orient) if
+    banded, else the striped texture.  Robust to grooves/splits -- only faces on
+    the bounding box's outer plane count; recessed interior faces are left alone."""
+    frame = _bbox_frame(body)
+
+    for face in body.faces:
+        try:
+            if not isinstance(face.geometry, adsk.core.Plane):
+                continue
+            kind, orient = _classify_face(frame, face)
+            if kind is None:
+                continue  # recessed face (groove/slot interior)
+            if kind == "big":
+                target = appr_face
+            else:
+                target = band_appr_by_orient.get(orient, appr_stripe)
+            if target is None:
+                continue
+            cur = face.appearance
+            if cur is None or cur.name != target.name:
+                face.appearance = target
+        except Exception as e:
+            futil.log(f"apply_finish: skipping a face: {e}")
+
+
+def _cabinet_flags(design, prefix):
+    """This cabinet's parameter values, keyed by base name (prefix stripped)."""
+    flags = {}
+    for i in range(design.userParameters.count):
+        p = design.userParameters.item(i)
+        if p.name.startswith(prefix):
+            flags[p.name[len(prefix):]] = p.value
+    return flags
+
+
+def get_decor_override(holder, spec_name):
+    """The user's persisted per-cabinet decor override for a board (a decor name),
+    or None if unset.  Legacy "1"/"0" values map to the default front/interior."""
+    attr = holder.attributes.itemByName(_FINISH_ATTR_GROUP, spec_name)
+    if attr is None:
+        return None
+    if attr.value == "1":
+        return _DEFAULT_FRONT
+    if attr.value == "0":
+        return _DEFAULT_INTERIOR
+    return attr.value
+
+
+def set_decor_override(holder, spec_name, decor_name):
+    holder.attributes.add(_FINISH_ATTR_GROUP, spec_name, decor_name)
+
+
+def set_banding_override(holder, spec_name, orient, value):
+    """Persist one edge's banding override: a decor name = banded in that colour,
+    "" = raw (not banded)."""
+    holder.attributes.add(_BANDING_ATTR_GROUP, f"{spec_name}:{orient}", value)
+
+
+# In-memory overrides for the *current dialog session*.  Clicks in the dialog
+# land here rather than writing attributes directly: model changes made from the
+# inputChanged handler are rolled back on the next preview cycle, but a plain
+# Python dict survives, and apply_finish (run every preview / execute) reads it.
+# persist_finish_overrides() flushes both to attributes on OK.
+_session_decor_overrides = {}    # (prefix, spec) -> decor name
+_session_banding_overrides = {}  # (prefix, spec, orient) -> decor name ("" = raw)
+
+
+def clear_session_finish_overrides():
+    """Reset session overrides -- call when the dialog (re)opens so a cancelled
+    session doesn't leak into the next one; persisted attributes remain."""
+    _session_decor_overrides.clear()
+    _session_banding_overrides.clear()
+
+
+def effective_decor(design, prefix, spec, holder, flags):
+    """The decor name a board is painted with, honouring (in priority order) a
+    live session override, a persisted attribute override, then the rule default
+    (the default-front decor for a coloured board, default-interior otherwise)."""
+    key = (prefix, spec)
+    if key in _session_decor_overrides:
+        return _session_decor_overrides[key]
+    override = get_decor_override(holder, spec)
+    if override is not None:
+        return override
+    default_colored = base_design.resolved_colored(spec, flags, None)
+    return _DEFAULT_FRONT if default_colored else _DEFAULT_INTERIOR
+
+
+def _raw_banding_override(prefix, spec, orient, holder):
+    """The stored banding override string for one edge, or None if unset.
+    A decor name means banded in that colour, "" means raw."""
+    key = (prefix, spec, orient)
+    if key in _session_banding_overrides:
+        return _session_banding_overrides[key]
+    attr = holder.attributes.itemByName(_BANDING_ATTR_GROUP, f"{spec}:{orient}")
+    return attr.value if attr else None
+
+
+def effective_banding(design, prefix, spec, holder, flags):
+    """Map of banded edge orientation -> decor name (the band colour) for a board.
+    Rule-banded edges default to the board's own decor; per-edge overrides (a
+    decor name to band in that colour, "" to make it raw) apply on top.  Raw
+    edges are omitted from the map."""
+    board_decor = effective_decor(design, prefix, spec, holder, flags)
+    banded = {o: board_decor
+              for o in base_design.resolved_banding(base_design.BANDING_BY_NAME[spec], flags)}
+    for orient in _ALL_ORIENTATIONS:
+        ov = _raw_banding_override(prefix, spec, orient, holder)
+        if ov is None:
+            continue
+        if ov in ("", "0"):          # explicit raw ("0" = legacy off)
+            banded.pop(orient, None)
+        elif ov == "1":               # legacy on -> banded in board decor
+            banded[orient] = board_decor
+        else:                          # banded in the named decor
+            banded[orient] = ov
+    return banded
+
+
+def persist_finish_overrides():
+    """Write this session's colour + banding overrides to occurrence attributes
+    so they survive save/reload.  Called on execute (OK)."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+
+    def _holder(prefix):
+        wrapper = next(
+            (o for o in design.rootComponent.occurrences
+             if o.component.name == prefix.rstrip("_")),
+            None,
+        )
+        return wrapper if wrapper is not None else design.rootComponent
+
+    for (prefix, spec), decor in _session_decor_overrides.items():
+        set_decor_override(_holder(prefix), spec, decor)
+    for (prefix, spec, orient), value in _session_banding_overrides.items():
+        set_banding_override(_holder(prefix), spec, orient, value)
+
+
+def apply_finish(prefix):
+    """Paint one cabinet's boards (faces + edges) to reflect finish colour and
+    edge banding.  Run after the parameters are pushed, every preview + execute."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+
+    appr_stripe = _get_or_create_stripe_appearance(design, _STRIPE_APPEARANCE_NAME)
+
+    # one appearance per decor, created on demand and cached for this run
+    decor_appr_cache = {}
+
+    def _decor_appearance(decor_name):
+        if decor_name not in decor_appr_cache:
+            decor_appr_cache[decor_name] = _get_or_create_solid_appearance(
+                design, "Ormar - " + decor_name, decor_rgb(decor_name)
+            )
+        return decor_appr_cache[decor_name]
+
+    flags = _cabinet_flags(design, prefix)
+    wrapper = next(
+        (occ for occ in design.rootComponent.occurrences
+         if occ.component.name == prefix.rstrip("_")),
+        None,
+    )
+    # per-cabinet overrides live on the wrapper occurrence (root comp for legacy)
+    attr_holder = wrapper if wrapper is not None else design.rootComponent
+
+    face_appr_cache = {}   # spec -> board's face appearance
+    band_appr_cache = {}   # spec -> {orient: band appearance}
+
+    # Walk from the root-level occurrence via childOccurrences: a nested
+    # component's `allOccurrences` gives proxies missing the root->wrapper step,
+    # and BRepFace.appearance then raises InternalValidationError.
+    def _paint_tree(occ):
+        spec = base_design.spec_name_for_component(occ.component.name)
+        if spec is not None:
+            if spec not in face_appr_cache:
+                face_appr_cache[spec] = _decor_appearance(
+                    effective_decor(design, prefix, spec, attr_holder, flags)
+                )
+                band_map = effective_banding(design, prefix, spec, attr_holder, flags)
+                band_appr_cache[spec] = {
+                    orient: _decor_appearance(decor)
+                    for orient, decor in band_map.items()
+                }
+            appr_face = face_appr_cache[spec]
+            if appr_face is not None:
+                for body in occ.bRepBodies:
+                    _paint_board(body, appr_face, band_appr_cache[spec], appr_stripe)
+        for child in occ.childOccurrences:
+            _paint_tree(child)
+
+    if wrapper is not None:
+        _paint_tree(wrapper)
+    else:
+        for occ in design.rootComponent.occurrences:
+            _paint_tree(occ)
+
+
+def _entity_to_occurrence(entity):
+    """Resolve a picked face/body/occurrence to its owning leaf occurrence."""
+    try:
+        if isinstance(entity, adsk.fusion.BRepFace):
+            return entity.body.assemblyContext
+        if isinstance(entity, adsk.fusion.BRepBody):
+            return entity.assemblyContext
+        if isinstance(entity, adsk.fusion.Occurrence):
+            return entity
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_board_context(occ):
+    """From a picked leaf occurrence -> (spec, prefix, holder, flags), or None
+    if it is not a recognised board."""
+    spec = base_design.spec_name_for_component(occ.component.name)
+    if spec is None:
+        return None
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    # fullPathName is "<wrapper>:1+<child>:1..." -> first token is the cabinet
+    wrapper_name = occ.fullPathName.split("+")[0].split(":")[0]
+    wrapper = next(
+        (o for o in design.rootComponent.occurrences
+         if o.component.name == wrapper_name),
+        None,
+    )
+    holder = wrapper if wrapper is not None else design.rootComponent
+    prefix = wrapper_name + "_"
+    return spec, prefix, holder, _cabinet_flags(design, prefix)
+
+
+def set_board_decor(entity, decor_name):
+    """Paint a clicked board with `decor_name` for its cabinet.  Records the
+    choice in the in-memory session store (NOT a direct attribute write -- that
+    would be rolled back after the inputChanged handler); apply_finish paints
+    from it every preview and persist_finish_overrides() commits it on OK.
+    Returns (prefix, spec_name, decor_name) or None if not a recognised board."""
+    occ = _entity_to_occurrence(entity)
+    if occ is None:
+        return None
+    ctx = _resolve_board_context(occ)
+    if ctx is None:
+        return None
+    spec, prefix, holder, flags = ctx
+    _session_decor_overrides[(prefix, spec)] = decor_name
+    return (prefix, spec, decor_name)
+
+
+def set_edge_band(entity, decor_name):
+    """Band a clicked narrow edge in `decor_name` (the active decor).  Clicking an
+    edge already banded in that same decor turns it raw (toggle off).  Records the
+    choice in the session store (same reason as set_board_decor).  Returns
+    (prefix, spec_name, orientation, new_decor_or_"") or None if the pick is not a
+    bandable edge face (a broad face or an interior/groove face)."""
+    if not isinstance(entity, adsk.fusion.BRepFace):
+        return None
+    body = entity.body
+    occ = body.assemblyContext
+    if occ is None:
+        return None
+    ctx = _resolve_board_context(occ)
+    if ctx is None:
+        return None
+    spec, prefix, holder, flags = ctx
+    kind, orient = _classify_face(_bbox_frame(body), entity)
+    if kind != "edge" or orient is None:
+        return None  # a broad face or a recessed face -- not a bandable edge
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    current = effective_banding(design, prefix, spec, holder, flags).get(orient)
+    new_value = "" if current == decor_name else decor_name  # "" = raw
+    _session_banding_overrides[(prefix, spec, orient)] = new_value
+    return (prefix, spec, orient, new_value)
 
 
 def get_design_by_name(

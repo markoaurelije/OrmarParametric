@@ -1,0 +1,78 @@
+{
+  "_comment": "Edit this file to change which boards are coloured and which edges are edge-banded. See board_rules.README.md for the full schema. 'colored' = the board's broad faces get the decorative finish colour (true) or stay white (false); may also be a condition string on the cabinet's flag parameters. 'banding' maps an edge orientation (front/back/left/right/top/bottom, in the cabinet world frame) to true or to a condition string; listed edges get edge-banded, others stay raw. Values here override the built-in defaults in base_design.py; delete this file to fall back to those.",
+  "boards": {
+    "donja_ploca": {
+      "colored": false,
+      "banding": {
+        "front": true,
+        "left": "bokovi_preko_donje_ploce == 0",
+        "right": "bokovi_preko_donje_ploce == 0"
+      }
+    },
+    "bok desno": {
+      "colored": false,
+      "banding": {
+        "front": true,
+        "top": "bokovi_preko_gornje_ploce == 1",
+        "bottom": "bokovi_preko_donje_ploce == 1 and cokla == 0"
+      }
+    },
+    "bok_lijevo": {
+      "colored": false,
+      "banding": {
+        "front": true,
+        "top": "bokovi_preko_gornje_ploce == 1",
+        "bottom": "bokovi_preko_donje_ploce == 1 and cokla == 0"
+      }
+    },
+    "ledja": {
+      "colored": false,
+      "banding": {}
+    },
+    "gornja_ploca": {
+      "colored": true,
+      "banding": {
+        "front": true,
+        "back": true,
+        "left": "bokovi_preko_gornje_ploce == 0",
+        "right": "bokovi_preko_gornje_ploce == 0"
+      }
+    },
+    "pregrada": {
+      "colored": false,
+      "banding": { "front": true }
+    },
+    "polica": {
+      "colored": false,
+      "banding": { "front": true }
+    },
+    "cokla": {
+      "colored": false,
+      "banding": {}
+    },
+    "fronta desno": {
+      "colored": true,
+      "banding": { "left": true, "right": true, "top": true, "bottom": true }
+    },
+    "fronta lijevo": {
+      "colored": true,
+      "banding": { "left": true, "right": true, "top": true, "bottom": true }
+    },
+    "ukruta otraga": {
+      "colored": false,
+      "banding": {}
+    },
+    "podnica": {
+      "colored": false,
+      "banding": {}
+    },
+    "zadnja": {
+      "colored": false,
+      "banding": {}
+    },
+    "fronta": {
+      "colored": true,
+      "banding": { "left": true, "right": true, "top": true, "bottom": true }
+    }
+  }
+}

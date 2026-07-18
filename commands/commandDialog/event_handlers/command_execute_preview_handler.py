@@ -6,6 +6,7 @@ from ..utils import (
     get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
+    apply_finish,
     set_component_visibility,
     set_user_parameters_via_inputs,
 )
@@ -51,6 +52,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         for prefix in prefixis:
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
             set_component_visibility(prefix)
+            apply_finish(prefix)
 
             for idx in range(
                 CommandExecutePreviewHandler.ultrabox_add_fired.get(prefix, 0)

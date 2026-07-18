@@ -21,6 +21,27 @@ panel, + toward the cabinet front), Z = height (0 at the bottom face of
 "donja_ploca"; the plinth hangs below into negative Z).
 
 All expressions use {p} as placeholder for the parameter prefix ("J1_").
+
+Edge banding (kantiranje)
+-------------------------
+Every panel carries a ``banding`` dict describing which of its narrow (thickness)
+edges must be edge-banded so the finished cabinet looks clean -- only edges that
+stay *visible* are banded; edges hidden against the wall, floor, another board,
+a door or the plinth are left raw.  Keys are the world-frame orientation of the
+edge's outward normal (see the coordinate frame above):
+
+    "front" (+Y)   "back" (-Y)
+    "left"  (+X)   "right" (-X)     # +X points from "bok desno" toward "bok lijevo"
+    "top"   (+Z)   "bottom" (-Z)
+
+A value of ``True`` means always banded; a string is a Python condition on the
+cabinet's flag parameters (referenced by their base name, e.g.
+``"bokovi_preko_donje_ploce == 0"``) evaluated live each preview so banding
+follows the construction.  Absent orientations are never banded.  These rules
+now live in board_rules.json (loaded below) with the tables here as fallback
+defaults; ``utils.apply_finish`` colours faces + edges from them, and
+``board_banding_counts`` reduces banding to the (long, short) counts the cut
+list needs.
 """
 
 import adsk.core
@@ -121,18 +142,40 @@ PANELS = [
         "size": ("{p}donja_sirina", "{p}donja_ploca_dubina", "{p}donja_ploca_debljina"),
         # grounded reference part: stays at the parent origin
         "pos": None,
+        # front edge shows behind the door; side edges only when the bottom
+        # runs full width (sides sit on top of it), otherwise the sides cover
+        # them; back edge faces the wall.
+        "banding": {
+            "front": True,
+            "left": "bokovi_preko_donje_ploce == 0",
+            "right": "bokovi_preko_donje_ploce == 0",
+        },
     },
     {
         "name": "bok desno",
         "plane": "YZ",
         "size": ("{p}bok_desno_debljina", "{p}bok_desno_dubina", "{p}bok_visina"),
         "pos": (_XI + " - {p}bok_desno_debljina", "-{p}ledja_debljina", _BOK_Z),
+        # front vertical edge always shows; top edge only when the side is the
+        # topmost surface; bottom edge only on wall units (no plinth); back
+        # edge faces the wall.
+        "banding": {
+            "front": True,
+            "top": "bokovi_preko_gornje_ploce == 1",
+            "bottom": "bokovi_preko_donje_ploce == 1 and cokla == 0",
+        },
     },
     {
         "name": "bok_lijevo",
         "plane": "YZ",
         "size": ("{p}bok_lijevo_debljina", "{p}bok_lijevo_dubina", "{p}bok_visina"),
         "pos": (_XI + " + " + _WIN, "-{p}ledja_debljina", _BOK_Z),
+        # same rule as "bok desno"
+        "banding": {
+            "front": True,
+            "top": "bokovi_preko_gornje_ploce == 1",
+            "bottom": "bokovi_preko_donje_ploce == 1 and cokla == 0",
+        },
     },
     {
         "name": "ledja",
@@ -143,6 +186,8 @@ PANELS = [
             "-{p}ledja_debljina",
             "{p}ledja_ofset",
         ),
+        # thin panel sunk in a groove, fully hidden
+        "banding": {},
     },
     {
         "name": "gornja_ploca",
@@ -153,6 +198,14 @@ PANELS = [
             "-if({p}ukrute; {p}ledja_debljina; 0 mm)",
             "{p}visina - " + _CK + " - {p}gornja_debljina",
         ),
+        # front edge always shows; side edges only when the top runs full
+        # width (sides do not run past it); back edge faces the wall.  Front
+        # overhang (napust) does not add banded edges (still one front edge).
+        "banding": {
+            "front": True,
+            "left": "bokovi_preko_gornje_ploce == 0",
+            "right": "bokovi_preko_gornje_ploce == 0",
+        },
     },
     {
         "name": "pregrada",
@@ -164,6 +217,8 @@ PANELS = [
         ),
         "pos": (_XI + " + {p}pregrada_ofset - {p}debljina_ploce", "0 mm", "{p}donja_ploca_debljina"),
         "light_bulb": False,
+        # only the front vertical edge shows
+        "banding": {"front": True},
     },
     {
         "name": "polica",
@@ -175,12 +230,17 @@ PANELS = [
             "{p}polica_ofset_visina + {p}donja_ploca_debljina - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm)",
         ),
         "light_bulb": False,
+        # only the front edge shows; sides butt the boks, back to the ledja
+        "banding": {"front": True},
     },
     {
         "name": "cokla",
         "plane": "XZ",
         "size": (_WIN, "{p}debljina_ploce", "{p}cokla_visina"),
         "pos": (_XI, _FRONT + " - {p}debljina_ploce", _BOK_Z),
+        # front face shows but no narrow edge is exposed (top under the
+        # cabinet, bottom on the floor, sides recessed between the boks)
+        "banding": {},
     },
     {
         "name": "fronta desno",
@@ -192,6 +252,10 @@ PANELS = [
             _DOOR_Z,
         ),
         "light_bulb": False,
+        # a door: exposed on all four sides.  The door lies in the XZ plane
+        # (its big faces point +/-Y), so its four narrow edges are the
+        # left/right verticals and the top/bottom horizontals.
+        "banding": {"left": True, "right": True, "top": True, "bottom": True},
     },
     {
         "name": "fronta lijevo",
@@ -203,6 +267,8 @@ PANELS = [
             _DOOR_Z,
         ),
         "light_bulb": False,
+        # a door: exposed on all four narrow edges (see "fronta desno")
+        "banding": {"left": True, "right": True, "top": True, "bottom": True},
     },
 ]
 
@@ -211,6 +277,8 @@ UKRUTA = {
     "name": "ukruta otraga",
     "plane": "XY",
     "size": ("{p}ukruta_duljina", "{p}ukruta_sirina", "if({p}ukrute; {p}debljina_ploce; 0.1 mm)"),
+    # hidden under the top/counter
+    "banding": {},
 }
 _UKRUTA_Z = "{p}visina - " + _CK + " - {p}gornja_debljina - if({p}ukrute; {p}debljina_ploce; 0.1 mm)"
 UKRUTA_POSITIONS = [
@@ -228,12 +296,16 @@ ULTRABOX_PANELS = [
         "plane": "XY",
         "size": ("{p}ultrabox_width", "{p}ultrabox_duljina", "{p}ultrabox_podnica_debljina"),
         "pos": None,  # grounded at the wrapper origin
+        # internal drawer bottom, not visible
+        "banding": {},
     },
     {
         "name": "zadnja",
         "plane": "XZ",
         "size": ("{p}ultrabox_width", "{p}debljina_ploce", "{p}ultrabox_visina - {p}ultrabox_podnica_debljina"),
         "pos": ("0 mm", "0 mm", "{p}ultrabox_podnica_debljina"),
+        # internal drawer back, not visible
+        "banding": {},
     },
     {
         "name": "fronta",
@@ -244,6 +316,9 @@ ULTRABOX_PANELS = [
             "{p}ultrabox_duljina",
             "-{p}ultrabox_fronta_ofset_od_dna",
         ),
+        # the drawer front is a visible door: banded on all four narrow edges
+        # (XZ plane, so left/right verticals and top/bottom horizontals)
+        "banding": {"left": True, "right": True, "top": True, "bottom": True},
     },
 ]
 # wrapper position in the root frame (top drawer slot, same as original J1)
@@ -252,6 +327,128 @@ ULTRABOX_POS = (
     _FRONT + " - {p}ultrabox_duljina",
     _DOOR_Z + " + {p}fronta_visina - {p}ultrabox_fronta_visina + {p}ultrabox_fronta_ofset_od_dna",
 )
+
+
+# ---------------------------------------------------------------------------
+# Finish (colour) and edge-banding lookup and reduction, shared by
+# utils.apply_finish (which colours faces + edges) and the future cut-list
+# export (which needs per-board banded-edge counts).  Pure data logic -- no
+# adsk calls -- so it stays unit-testable and reusable.
+#
+# These are the built-in *defaults*.  board_rules.json (loaded below) overrides
+# them board-by-board and is the file a user is meant to edit; see
+# board_rules.README.md.
+# ---------------------------------------------------------------------------
+_ALL_SPECS = PANELS + [UKRUTA] + ULTRABOX_PANELS
+BANDING_BY_NAME = {s["name"]: s.get("banding", {}) for s in _ALL_SPECS}
+PLANE_BY_NAME = {s["name"]: s["plane"] for s in _ALL_SPECS}
+
+# Default face-finish per board: True = decorative colour, False = white
+# (interior).  Only visible-outside boards are coloured by default -- the doors
+# and the top panel; the user colours anything else per cabinet in the dialog.
+COLORED_DEFAULTS = {name: False for name in BANDING_BY_NAME}
+for _n in ("fronta desno", "fronta lijevo", "fronta", "gornja_ploca"):
+    COLORED_DEFAULTS[_n] = True
+COLORED_BY_NAME = dict(COLORED_DEFAULTS)
+
+
+def _load_board_rules_json():
+    """Override BANDING_BY_NAME / COLORED_BY_NAME from board_rules.json if it is
+    present and valid; otherwise keep the built-in defaults."""
+    import os, json
+    path = os.path.join(os.path.dirname(__file__), "board_rules.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return
+    boards = data.get("boards", data)  # allow a flat map too
+    if not isinstance(boards, dict):
+        return
+    for name, rules in boards.items():
+        if name.startswith("_") or not isinstance(rules, dict):
+            continue
+        if "banding" in rules:
+            BANDING_BY_NAME[name] = rules["banding"]
+        if "colored" in rules:
+            COLORED_BY_NAME[name] = rules["colored"]
+
+
+_load_board_rules_json()
+
+# For a board in a given sketch plane, the dim index (0=X, 1=Y, 2=Z) that gives
+# the *length* of the edge whose outward face normal has each orientation.  The
+# board's thickness axis is excluded (those are the two big faces, never banded).
+_EDGE_DIM = {
+    "XY": {"front": 0, "back": 0, "left": 1, "right": 1},
+    "XZ": {"left": 2, "right": 2, "top": 0, "bottom": 0},
+    "YZ": {"front": 2, "back": 2, "top": 1, "bottom": 1},
+}
+# the two in-plane dim indices (the non-thickness axes) per sketch plane
+_INPLANE = {"XY": (0, 1), "XZ": (0, 2), "YZ": (1, 2)}
+
+
+def _eval_banding_condition(cond, flags: dict) -> bool:
+    """A banding value is either True (always) or a Python expression string on
+    the cabinet's flag parameters (base names -> numeric values)."""
+    if cond is True:
+        return True
+    if isinstance(cond, str):
+        try:
+            return bool(eval(cond, {"__builtins__": {}}, flags))
+        except Exception:
+            return False
+    return bool(cond)
+
+
+def resolved_banding(banding: dict, flags: dict) -> set:
+    """The set of edge orientations actually banded for the given flag values."""
+    return {o for o, cond in (banding or {}).items()
+            if _eval_banding_condition(cond, flags)}
+
+
+def resolved_colored(name: str, flags: dict, override=None) -> bool:
+    """Whether a board's faces get the finish colour.  A per-cabinet `override`
+    (True/False from a user click, or None for 'use the default') wins; else the
+    board_rules.json / built-in default is evaluated against the flags."""
+    if override is not None:
+        return bool(override)
+    return _eval_banding_condition(COLORED_BY_NAME.get(name, False), flags)
+
+
+def spec_name_for_component(comp_name: str):
+    """Map a Fusion component name (including rectangular-pattern copies such as
+    'polica3') to its board spec name, or None if it is not a banded board."""
+    if comp_name in BANDING_BY_NAME:
+        return comp_name
+    base = comp_name.rstrip("0123456789").rstrip()
+    return base if base in BANDING_BY_NAME else None
+
+
+def board_banding_counts(comp_name: str, flags: dict, dims):
+    """Reduce a board's banding to the ``(long_count, short_count)`` the cut list
+    needs: how many of the two long edges and two short edges are banded, each in
+    {0, 1, 2}.  ``dims`` is the board's evaluated (dx, dy, dz) size in any single
+    consistent unit; long/short is decided from the actual geometry so it stays
+    correct on deep or tall boards."""
+    name = spec_name_for_component(comp_name)
+    if name is None:
+        return (0, 0)
+    plane = PLANE_BY_NAME[name]
+    banded = resolved_banding(BANDING_BY_NAME[name], flags)
+    # A board has exactly two edge pairs; each banded edge belongs to the pair
+    # running along one in-plane axis (its length = that axis's dim).  Count per
+    # pair first, then label the longer-edge pair "long" -- so the count in each
+    # pair can never exceed 2 even when the board is square.
+    per_axis = {}  # in-plane dim index -> banded count in that pair
+    for orientation in banded:
+        idx = _EDGE_DIM[plane].get(orientation)
+        if idx is None:
+            continue
+        per_axis[idx] = per_axis.get(idx, 0) + 1
+    a, b = _INPLANE[plane]
+    long_idx, short_idx = (a, b) if dims[a] >= dims[b] else (b, a)
+    return (per_axis.get(long_idx, 0), per_axis.get(short_idx, 0))
 
 
 def _fmt(expr: str, prefix: str) -> str:

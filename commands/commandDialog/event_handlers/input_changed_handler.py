@@ -5,7 +5,14 @@ import adsk.core
 from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
 from ....lib import fusionAddInUtils as futil
 
-from ..utils import request_add_cabinet, request_delete_cabinet, load_preset
+from ..utils import (
+    request_add_cabinet,
+    request_delete_cabinet,
+    load_preset,
+    set_board_decor,
+    set_edge_band,
+    apply_finish,
+)
 from ..dialog_config import InputType, input_items
 
 
@@ -29,6 +36,40 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             # self.inputsManager.processChangedInput(self.inputs, args.input)
             changed_input = args.input
             futil.log(f"Input changed: {changed_input.id}")
+
+            if changed_input.id in ("finish_paint_select", "finish_band_select"):
+                # momentary pickers: paint the clicked board the active decor /
+                # toggle the clicked edge's banding, then clear so the next click
+                # works again.  Re-fires with selectionCount == 0, which this
+                # ignores.
+                is_band = changed_input.id == "finish_band_select"
+                decor_dd = self.inputs.itemById("finish_active_decor")
+                active_decor = (
+                    decor_dd.selectedItem.name
+                    if decor_dd and decor_dd.selectedItem
+                    else None
+                )
+                sel_input = adsk.core.SelectionCommandInput.cast(changed_input)
+                if sel_input and sel_input.selectionCount > 0:
+                    touched = set()
+                    for i in range(sel_input.selectionCount):
+                        entity = sel_input.selection(i).entity
+                        if not active_decor:
+                            result = None
+                        elif is_band:
+                            result = set_edge_band(entity, active_decor)
+                        else:
+                            result = set_board_decor(entity, active_decor)
+                        if result:
+                            touched.add(result[0])
+                            futil.log(f"Finish change: {result}")
+                    sel_input.clearSelection()
+                    # repaint the affected cabinet(s) now for immediate feedback
+                    # (the executePreview pass repaints too, but may not fire on
+                    # a selection-only change).
+                    for prefix in touched:
+                        apply_finish(prefix)
+                return
 
             if changed_input.id.endswith("_presets"):
                 prefix = changed_input.id[: -len("presets")]

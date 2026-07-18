@@ -1,0 +1,12 @@
+{
+  "_comment": "Decor palette for cabinet finishes. Edit/add entries freely. 'name' is what shows in the 'Boja' dropdown and (with 'code') feeds the future order/cut-list export; 'rgb' is only the 3D preview colour. 'default_front' is the decor coloured boards get by default (doors, top); 'default_interior' is the white/carcass decor non-coloured boards get. A board painted with the default_interior decor reads as white/interior.",
+  "default_front": "Hrast",
+  "default_interior": "Bijela",
+  "decors": [
+    { "name": "Bijela", "rgb": [244, 244, 240], "code": "W980" },
+    { "name": "Hrast", "rgb": [196, 160, 106], "code": "H1145" },
+    { "name": "Antracit", "rgb": [58, 61, 64], "code": "U963" },
+    { "name": "Siva", "rgb": [150, 150, 150], "code": "U732" },
+    { "name": "Crna", "rgb": [30, 30, 30], "code": "U999" }
+  ]
+}

@@ -6,6 +6,8 @@ from ..utils import (
     get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
+    apply_finish,
+    persist_finish_overrides,
     set_component_visibility,
     set_user_parameters_via_inputs,
 )
@@ -46,6 +48,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         for prefix in prefixis:
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
             set_component_visibility(prefix)
+            apply_finish(prefix)
 
             for idx in range(CommandExecuteHandler.ultrabox_add_fired.get(prefix, 0)):
                 perform_add_ultrabox(prefix, idx + 1)
+
+        # commit the session's colour + banding clicks to attributes (persistence)
+        persist_finish_overrides()
