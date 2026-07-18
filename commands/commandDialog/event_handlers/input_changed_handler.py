@@ -5,7 +5,7 @@ import adsk.core
 from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
 from ....lib import fusionAddInUtils as futil
 
-from ..utils import request_add_cabinet, load_preset
+from ..utils import request_add_cabinet, request_delete_cabinet, load_preset
 from ..dialog_config import InputType, input_items
 
 
@@ -68,6 +68,10 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                         futil.log(
                             f"Fronta ON: auto-enabled {prefix}fronta_desna"
                         )
+            elif changed_input.id.endswith("_delete_cabinet"):
+                prefix = changed_input.id[: -len("delete_cabinet")]
+                futil.log(f"Deleting cabinet with prefix: {prefix}")
+                request_delete_cabinet(prefix)
             elif changed_input.id.endswith("add_ultrabox"):
                 prefix = changed_input.id.split("add_ultrabox")[0]
                 futil.log(f"Adding ultrabox with prefix: {prefix}")

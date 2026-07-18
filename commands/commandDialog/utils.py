@@ -230,6 +230,17 @@ def create_dialog(inputs: adsk.core.CommandInputs):
         for key in presets.keys():
             dropdown.listItems.add(key, False, "")
 
+        # delete-cabinet button (per tab)
+        tab_input.children.addBoolValueInput(
+            f"{prefix}delete_cabinet",
+            "Obriši ormar",
+            False,
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "resources", "remove"
+            ),
+            False,
+        )
+
         for input_item in input_items:
             create_input(tab_input.children, input_item, prefix)
             if input_item.input_has_no_param is False:
@@ -575,6 +586,167 @@ def materialize_pending_cabinets(pending_cabinet_names: set):
                 )
     finally:
         _materializing = False
+
+
+def request_delete_cabinet(prefix: str):
+    """Handle an "Obriši ormar" click.
+
+    Queues the prefix for deletion on the next preview/execute cycle,
+    following the same deferred-materialization pattern as add_cabinet
+    and add_ultrabox to survive Fusion's preview rollback behaviour.
+    """
+    from .event_handlers.command_execute_handler import CommandExecuteHandler
+    from .event_handlers.command_execute_preview_handler import (
+        CommandExecutePreviewHandler,
+    )
+
+    CommandExecutePreviewHandler.pending_deletions.add(prefix)
+    CommandExecuteHandler.pending_deletions.add(prefix)
+    futil.log(f"Queued cabinet '{prefix}' for deletion on next preview/execute")
+
+
+def perform_delete_cabinet(prefix: str, delete_params: bool = True):
+    """Delete a cabinet and all its user parameters from the design.
+
+    The wrapper occurrence is deleted *before* the parameters. This order
+    is essential: every cabinet parameter drives sketch dimensions /
+    extrude distances inside the occurrence, and Fusion refuses to delete
+    a parameter that is still referenced by a feature (isDeletable is
+    False while the geometry exists). Only once the occurrence — and with
+    it all its parameter-driven features — is gone do the parameters
+    become deletable. Deleting params first (with the occurrence still
+    present) silently leaves them all behind, which is how orphaned
+    parameter sets with no occurrence get created.
+
+    Set `delete_params=False` during preview — Fusion blocks parameter
+    deletion in preview mode, so we only remove the occurrence for visual
+    feedback and defer the full cleanup to the execute cycle.
+    """
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    root = design.rootComponent
+    cabinet_name = prefix.rstrip("_")
+
+    deleted_count = 0
+
+    # 1) Delete the wrapper occurrence first, so its parameter-driven
+    #    features release the user parameters (see docstring). Deleting
+    #    the occurrence also cleans up the root-level combine/pattern
+    #    features that operate on the cabinet's bodies.
+    occ = next(
+        (o for o in root.occurrences if o.component.name == cabinet_name),
+        None,
+    )
+    if occ is not None:
+        futil.log(f"Deleting cabinet occurrence '{cabinet_name}'")
+        try:
+            occ.deleteMe()
+        except Exception as e:
+            futil.log(
+                f"Failed to delete occurrence '{cabinet_name}': {e}",
+                adsk.core.LogLevels.ErrorLogLevel,
+            )
+    else:
+        futil.log(
+            f"Cabinet occurrence '{cabinet_name}' not found for deletion",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+
+    # 2) Delete all user parameters matching the prefix.
+    #    Fusion silently refuses deleteMe() on a parameter that is still
+    #    referenced by another parameter's expression, so we retry in
+    #    passes: each pass deletes the current leaf parameters, freeing
+    #    the ones that referenced them for the next pass. Fusion also
+    #    blocks ALL parameter deletion during preview — so this only runs
+    #    on execute (delete_params=True).
+    if delete_params:
+        remaining = set()
+        for i in range(design.userParameters.count):
+            p = design.userParameters.item(i)
+            if p.name.startswith(prefix):
+                remaining.add(p.name)
+
+        while remaining:
+            deleted_any = False
+            for name in list(remaining):
+                param = design.userParameters.itemByName(name)
+                if param is None:
+                    remaining.discard(name)
+                    deleted_any = True
+                    continue
+                try:
+                    futil.log(f"Deleting user parameter '{name}'")
+                    param.deleteMe()
+                except Exception as e:
+                    futil.log(
+                        f"deleteMe raised for '{name}': {e}",
+                        adsk.core.LogLevels.WarningLogLevel,
+                    )
+                # Fusion may silently refuse — verify it's actually gone.
+                if design.userParameters.itemByName(name) is None:
+                    remaining.discard(name)
+                    deleted_count += 1
+                    deleted_any = True
+            if not deleted_any:
+                futil.log(
+                    f"Could not delete {len(remaining)} parameters: {remaining}",
+                    adsk.core.LogLevels.WarningLogLevel,
+                )
+                break
+
+    futil.log(
+        f"Deleted cabinet '{cabinet_name}' "
+        f"({deleted_count} parameters)"
+    )
+
+
+_deleting = False
+
+
+def materialize_pending_deletions(pending_deletion_prefixes: set,
+                                  delete_params: bool = True):
+    global _deleting
+    if not pending_deletion_prefixes or _deleting:
+        return
+    _deleting = True
+    try:
+        for prefix in list(pending_deletion_prefixes):
+            try:
+                perform_delete_cabinet(prefix, delete_params=delete_params)
+                futil.log(f"Materialized deletion of cabinet '{prefix}'")
+            except Exception as e:
+                futil.log(
+                    f"Failed to delete cabinet '{prefix}': {e}",
+                    adsk.core.LogLevels.ErrorLogLevel,
+                )
+            finally:
+                pending_deletion_prefixes.discard(prefix)
+    finally:
+        _deleting = False
+
+
+def collect_delete_requests(inputs: adsk.core.CommandInputs):
+    """Walk the entire command-inputs tree and, for any pressed
+    delete-cabinet button, call request_delete_cabinet (which queues the
+    prefix in *both* the preview and execute pending-deletion sets).
+
+    This is a safety net for the case where inputChanged does not fire
+    for a BoolValueCommandInput inside a TabCommandInput (a known quirk
+    in some Fusion versions).  The button value is reset so it does not
+    re-fire on subsequent cycles.
+    """
+
+    def _walk(container):
+        for i in range(container.count):
+            inp = container.item(i)
+            if inp.id.endswith("_delete_cabinet") and inp.value:
+                prefix = inp.id[: -len("delete_cabinet")]
+                futil.log(f"Collecting delete request for '{prefix}' from input scan")
+                request_delete_cabinet(prefix)
+                inp.value = False  # reset
+            if hasattr(inp, "children"):
+                _walk(inp.children)
+
+    _walk(inputs)
 
 
 def rename_user_parameters(name: str):
