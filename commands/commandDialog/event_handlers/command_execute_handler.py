@@ -3,6 +3,7 @@ import adsk, adsk.core
 from ....lib import fusionAddInUtils as futil
 from ..utils import (
     get_prefixes,
+    materialize_pending_cabinets,
     set_component_visibility,
     set_user_parameters_via_inputs,
 )
@@ -11,11 +12,13 @@ from ...commandDialog.ultrabox import perform_add_ultrabox
 
 class CommandExecuteHandler(adsk.core.CommandEventHandler):
     ultrabox_add_fired: dict[str, int] = defaultdict(int)
+    pending_cabinets: set = set()
 
     def __init__(self):
         super().__init__()
         futil.log("CommandExecuteHandler created")
         CommandExecuteHandler.ultrabox_add_fired = defaultdict(int)
+        CommandExecuteHandler.pending_cabinets = set()
 
     def __del__(self):
         futil.log("CommandExecuteHandler deleted")
@@ -24,6 +27,8 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         eventArgs = adsk.core.CommandEventArgs.cast(args)
 
         futil.log(f"Command Execute Event")
+
+        materialize_pending_cabinets(CommandExecuteHandler.pending_cabinets)
 
         prefixis = get_prefixes()
 

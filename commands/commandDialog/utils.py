@@ -3,9 +3,45 @@ from typing import Optional
 import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
 from ..commandDialog.presets import presets
+from ..commandDialog import base_design
 from ...lib import fusionAddInUtils as futil
 
 app = adsk.core.Application.get()
+
+
+def _find_command_input(input_container, input_id):
+    if input_container is None:
+        return None
+
+    if getattr(input_container, "id", None) == input_id:
+        return input_container
+
+    if hasattr(input_container, "itemById"):
+        try:
+            found = input_container.itemById(input_id)
+            if found:
+                return found
+        except Exception:
+            pass
+
+    children = None
+    if hasattr(input_container, "children"):
+        children = input_container.children
+    elif isinstance(input_container, (list, tuple)):
+        children = input_container
+    elif hasattr(input_container, "count") and hasattr(input_container, "item"):
+        # CommandInputs collection — has count/item but no .children
+        children = [input_container.item(i) for i in range(input_container.count)]
+
+    if children is None:
+        return None
+
+    for child in children:
+        found = _find_command_input(child, input_id)
+        if found:
+            return found
+
+    return None
 
 
 def create_input(
@@ -136,7 +172,7 @@ def set_input_via_userparam(
     futil.log(f"Setting input {input_item.name} to {param.expression}")
 
     # find the input if it exists in inputs
-    input = inputs.itemById(f"{prefix}{input_item.name}")
+    input = _find_command_input(inputs, f"{prefix}{input_item.name}")
     if not input:
         futil.log(
             f"Input {prefix}{input_item.name} not found in inputs.",
@@ -173,28 +209,30 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     # Create a value input field and set the default using 1 unit of the default length unit.
 
     #####  CREATING A DIALOG  #####
-    # add bellow 2 inputs only if doc name is J1
+    # cabinets are generated from code (base_design.py), so any design can
+    # add one - no J1 base document needed anymore
     doc = app.activeDocument
     futil.log(f"Current document: {doc.name}")
-    if doc.name.startswith("J1"):
-        inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
-        inputs.addTextBoxCommandInput(
-            "newComponentName", "Ime novog ormara", "O1", 1, False
-        )
+    inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
+    inputs.addTextBoxCommandInput(
+        "newComponentName", "Ime novog ormara", "O1", 1, False
+    )
 
     prefixis = get_prefixes()
     for prefix in prefixis:
         futil.log(f"Adding tab: {prefix}")
         tab_input = inputs.addTabCommandInput(prefix, prefix)
         dropdown = tab_input.children.addDropDownCommandInput(
-            "presets", "Presets", adsk.core.DropDownStyles.LabeledIconDropDownStyle
+            f"{prefix}presets",
+            "Presets",
+            adsk.core.DropDownStyles.LabeledIconDropDownStyle,
         )
         for key in presets.keys():
             dropdown.listItems.add(key, False, "")
 
         for input_item in input_items:
             create_input(tab_input.children, input_item, prefix)
-            if input_item.input_has_no_param == False:
+            if input_item.input_has_no_param is False:
                 set_input_via_userparam(input_item, tab_input.children, prefix)
 
 
@@ -255,22 +293,24 @@ def input_to_user_parameter(
         return
 
     # futil.log(f"Setting user parameter {user_param_name}")
-    if input_item.type == InputType.VALUE:
-        param.expression = adsk.core.ValueCommandInput.cast(
-            inputs.itemById(user_param_name)
-        ).expression
-    elif input_item.type == InputType.BOOL:
-        param.value = 1 if inputs.itemById(user_param_name).value else 0
-    elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
-        param.value = (
-            1 if inputs.itemById(user_param_name).isEnabledCheckBoxChecked else 0
+    input = _find_command_input(inputs, user_param_name)
+    if input is None:
+        futil.log(
+            f"Input {user_param_name} not found in inputs.",
+            adsk.core.LogLevels.WarningLogLevel,
         )
+        return
+
+    if input_item.type == InputType.VALUE:
+        param.expression = adsk.core.ValueCommandInput.cast(input).expression
+    elif input_item.type == InputType.BOOL:
+        param.value = 1 if input.value else 0
+    elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
+        param.value = 1 if input.isEnabledCheckBoxChecked else 0
     elif input_item.type == InputType.INTEGER:
-        param.expression = str(inputs.itemById(user_param_name).value)
+        param.expression = str(input.value)
     elif input_item.type == InputType.DROPDOWN:
-        selected_item = adsk.core.DropDownCommandInput.cast(
-            inputs.itemById(user_param_name)
-        ).selectedItem
+        selected_item = adsk.core.DropDownCommandInput.cast(input).selectedItem
         if selected_item:
             param.expression = selected_item.name
         else:
@@ -371,24 +411,26 @@ def set_component_visibility(prefix):
         pregradaComp.isLightBulbOn = bool(pregrada_presence.value)
 
     # now suppress features based on user parameters
-    for feature in ukruteComp.childOccurrences[0].component.features:
-        futil.log(f"Checking feature: {feature.name}")
-        if feature.name.startswith("split ukrute"):
-            futil.log(
-                f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
-            )
-            feature.isSuppressed = not pregradaComp.isLightBulbOn
-            break
-
-    for polica in policaComp:
-        for feature in polica.component.features:
+    if ukruteComp and pregradaComp:
+        for feature in ukruteComp.childOccurrences[0].component.features:
             futil.log(f"Checking feature: {feature.name}")
-            if feature.name.startswith("split police"):
+            if feature.name.startswith("split ukrute"):
                 futil.log(
                     f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
                 )
                 feature.isSuppressed = not pregradaComp.isLightBulbOn
                 break
+
+    if pregradaComp:
+        for polica in policaComp:
+            for feature in polica.component.features:
+                futil.log(f"Checking feature: {feature.name}")
+                if feature.name.startswith("split police"):
+                    futil.log(
+                        f"Setting feature {feature.name} suppressed: {not pregradaComp.isLightBulbOn}"
+                    )
+                    feature.isSuppressed = not pregradaComp.isLightBulbOn
+                    break
 
 
 def get_design_by_name(
@@ -454,63 +496,85 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
     set_component_visibility(prefix)
 
 
-def add_parametric_component(
-    new_component_name: str,
-    create_new_design: bool = False,
-    target_design_name: str = "test",
-):
-    base_data_file = get_design_by_name(
-        "J1", "Ormari - parametric", "Ormari - parametric"
-    )
-    if not base_data_file:
-        app.userInterface.messageBox("Base design not found", "Erorr")
-        return
-    futil.log(f"Base design found: {base_data_file.name}")
+def request_add_cabinet(new_component_name: str):
+    """Handle a "Dodaj ormar" click.
 
-    # open new design and insert the base design
-    if create_new_design:
+    J1 is kept pristine: it has no special role anymore (nothing is copied
+    from it), but a cabinet generated at the origin would land exactly on
+    top of J1's own geometry, silently cluttering the master file, so that
+    case still routes into a brand-new document, immediately and directly
+    (matching the original J1-copy implementation's behavior).
+
+    For any other (normal project) document, the cabinet is added directly
+    into that same document - but not immediately. While our command is
+    active on a document, Fusion silently rolls back any structural model
+    changes (new components/bodies) made from the inputChanged handler on
+    the very next preview cycle; only parameter edits survive, because
+    set_user_parameters_via_inputs re-applies them every cycle. So instead
+    the request is queued, and materialize_pending_cabinets() rebuilds it
+    from scratch on every preview/execute cycle (same pattern already used
+    for "add ultrabox" via ultrabox_add_fired) - idempotent-by-construction,
+    giving live preview and surviving through to the final commit on OK.
+    """
+    doc = app.activeDocument
+    if doc.name.startswith("J1"):
         target_doc = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
         futil.log(f"Activating")
         target_doc.activate()
-    else:
-        # get curently active design
-        doc = app.activeDocument
-        futil.log(f"Current document: {doc.name}")
-        if not doc.name.startswith("J1"):
-            target_doc = doc
-        else:
-            # target data_file
-            target_data_file = get_design_by_name(
-                target_design_name, "Ormari - parametric"
-            )
-            if not target_data_file:
-                app.userInterface.messageBox(
-                    f"Target design '{target_design_name}' not found", "Erorr"
-                )
-                return
-            # open and activate a data file
-            futil.log(f"Opening target document: {target_data_file.name}")
-            target_doc = app.documents.open(target_data_file)
 
-            futil.log(f"Activating")
-            target_doc.activate()
+        design = adsk.fusion.Design.cast(app.activeProduct)
+        futil.log(f"Generating cabinet '{new_component_name}' in {app.activeDocument.name}")
+        try:
+            occurrence = base_design.add_cabinet(design, new_component_name)
+        except ValueError as e:
+            app.userInterface.messageBox(str(e), "Error")
+            return
+        futil.log(f"New cabinet generated: {occurrence.component.name}")
+        return
 
     design = adsk.fusion.Design.cast(app.activeProduct)
-    # make sure "design" is not a base design, compare by name
-    if design.rootComponent.name == "J1":
+    if design.userParameters.itemByName(f"{new_component_name}_sirina"):
         app.userInterface.messageBox(
-            "Current design is the base design. Open new desing, and try again.",
-            "Erorr",
+            f"Parameters with prefix '{new_component_name}_' already exist in this design",
+            "Error",
         )
         return
 
-    futil.log(f"Current design: {design.rootComponent.name}")
-    occurrence = design.rootComponent.occurrences.addByInsert(
-        base_data_file, adsk.core.Matrix3D.create(), False
+    from .event_handlers.command_execute_handler import CommandExecuteHandler
+    from .event_handlers.command_execute_preview_handler import (
+        CommandExecutePreviewHandler,
     )
-    occurrence.component.name = new_component_name
-    rename_user_parameters(new_component_name)
-    futil.log(f"New component inserted: {occurrence.component.name}")
+
+    CommandExecutePreviewHandler.pending_cabinets.add(new_component_name)
+    CommandExecuteHandler.pending_cabinets.add(new_component_name)
+    futil.log(f"Queued cabinet '{new_component_name}' to materialize on next preview/execute")
+
+
+_materializing = False
+
+
+def materialize_pending_cabinets(pending_cabinet_names: set):
+    global _materializing
+    if not pending_cabinet_names or _materializing:
+        # guards against reentrant preview/execute cycles Fusion may pump
+        # while add_cabinet's own API calls are still running
+        return
+    _materializing = True
+    try:
+        design = adsk.fusion.Design.cast(app.activeProduct)
+        for name in pending_cabinet_names:
+            if design.userParameters.itemByName(f"{name}_sirina"):
+                continue  # already persisted this cycle (e.g. on execute, no rollback happened)
+            try:
+                base_design.add_cabinet(design, name)
+                futil.log(f"Materialized pending cabinet '{name}'")
+            except ValueError as e:
+                futil.log(
+                    f"Failed to materialize cabinet '{name}': {e}",
+                    adsk.core.LogLevels.ErrorLogLevel,
+                )
+    finally:
+        _materializing = False
 
 
 def rename_user_parameters(name: str):

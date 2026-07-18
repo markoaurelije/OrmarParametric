@@ -5,11 +5,8 @@ import adsk.core
 from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
 from ....lib import fusionAddInUtils as futil
 
-from ..utils import add_parametric_component, load_preset
+from ..utils import request_add_cabinet, load_preset
 from ..dialog_config import InputType, input_items
-
-
-persistant_target_design_name = None
 
 
 class InputChangedHandler(adsk.core.InputChangedEventHandler):
@@ -27,16 +24,16 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
         futil.log("InputChangedHandler deleted")
 
     def notify(self, args: adsk.core.InputChangedEventArgs):
-        global persistant_target_design_name
         try:
             # Process the changed input through the dependency manager
             # self.inputsManager.processChangedInput(self.inputs, args.input)
             changed_input = args.input
             futil.log(f"Input changed: {changed_input.id}")
 
-            if changed_input.id == "presets":
+            if changed_input.id.endswith("_presets"):
+                prefix = changed_input.id[: -len("presets")]
                 selected_preset = changed_input.selectedItem.name
-                load_preset(selected_preset, self.inputs)
+                load_preset(selected_preset, self.inputs, prefix)
                 return
             elif changed_input.id == "addPresetButton":
                 # get the input valur of 'newComponentName' input
@@ -44,25 +41,33 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     (input for input in self.inputs if input.id == "newComponentName"),
                     None,
                 )
-
-                # ask the user to input a name for target design, open a dialog
-                app = adsk.core.Application.get()
-                ui = app.userInterface
-                target_design_name, canceled = ui.inputBox(
-                    "Enter a name for the target design:",
-                    "Test Design Name",
-                    persistant_target_design_name or "Test Design",
-                )
-                if canceled:
-                    futil.log("User canceled the input box")
-                    return
-
-                add_parametric_component(
-                    new_name.text if new_name else "Ox",
-                    target_design_name=target_design_name,
-                )
-                persistant_target_design_name = target_design_name
+                # the cabinet is generated from code into the active design,
+                # so no target-design lookup is needed anymore
+                request_add_cabinet(new_name.text if new_name else "Ox")
                 return
+            elif changed_input.id.endswith("_fronta"):
+                # When the Fronta group checkbox is turned ON, ensure at least
+                # one door direction (left or right) is also enabled so the
+                # user actually sees a door appear.
+                prefix = changed_input.id[: -len("fronta")]
+                fronta_input = adsk.core.GroupCommandInput.cast(changed_input)
+                if fronta_input and fronta_input.isEnabledCheckBoxChecked:
+                    lijevo = adsk.core.BoolValueCommandInput.cast(
+                        self.inputs.itemById(prefix + "fronta_lijeva")
+                    )
+                    desno = adsk.core.BoolValueCommandInput.cast(
+                        self.inputs.itemById(prefix + "fronta_desna")
+                    )
+                    if (
+                        lijevo is not None
+                        and desno is not None
+                        and not lijevo.value
+                        and not desno.value
+                    ):
+                        desno.value = True
+                        futil.log(
+                            f"Fronta ON: auto-enabled {prefix}fronta_desna"
+                        )
             elif changed_input.id.endswith("add_ultrabox"):
                 prefix = changed_input.id.split("add_ultrabox")[0]
                 futil.log(f"Adding ultrabox with prefix: {prefix}")
