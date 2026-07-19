@@ -30,27 +30,34 @@ def perform_add_ultrabox(prefix: str, index: int):
     rootComp = design.rootComponent
 
     futil.log("Adding a new ultrabox configuration")
-    # 1) copy the base component named "Ultrabox" - it should exist in the active design
-    # find the component named "Ultrabox" in the active design
+    # 1) copy this cabinet's hidden Ultrabox template.  Components are now scoped
+    #    to the cabinet ('<prefix>Ultrabox') and the template lives inside the
+    #    cabinet's wrapper occurrence, so search that wrapper's subtree.
+    cabinet = prefix.rstrip("_")
+    wrapper = next(
+        (o for o in rootComp.occurrences if o.component.name == cabinet), None
+    )
+    search_scope = wrapper.component.occurrences if wrapper else rootComp.occurrences
+    template_name = prefix + "Ultrabox"
     ultrabox_base = next(
         (
             occurrence
-            for occurrence in rootComp.occurrences
-            if occurrence.component.name == "Ultrabox"
+            for occurrence in search_scope
+            if occurrence.component.name == template_name
         ),
         None,
     )
 
     if not ultrabox_base:
-        futil.log("Ultrabox base component not found")
+        futil.log(f"Ultrabox base component '{template_name}' not found")
         return
 
-    new_occurrence = rootComp.occurrences.addNewComponentCopy(
+    new_occurrence = search_scope.addNewComponentCopy(
         ultrabox_base.component, adsk.core.Matrix3D.create()
     )
 
-    # 2) change the name of the component to "Ultrabox <number>"
-    new_occurrence.component.name = f"Ultrabox {index}"
+    # 2) change the name of the component to "<prefix>Ultrabox <number>"
+    new_occurrence.component.name = f"{prefix}Ultrabox {index}"
     new_occurrence.isLightBulbOn = True
 
     # 3) set the parameters for the component based on the inputs in the dialog

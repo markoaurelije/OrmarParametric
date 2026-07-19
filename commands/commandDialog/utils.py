@@ -504,21 +504,27 @@ def set_component_visibility(prefix):
         rootComp = design.rootComponent
 
     for occurrence in rootComp.occurrences:
-        if occurrence.component.name.startswith("gornja_ploca"):
+        # strip the cabinet prefix (and any ' (N)' suffix), then normalise
+        # underscores to spaces so both the scoped new names ('O2_gornja ploca')
+        # and legacy underscore names ('gornja_ploca') match the same way.
+        base = base_design.base_component_name(
+            occurrence.component.name, prefix
+        ).replace("_", " ")
+        if base.startswith("gornja ploca"):
             gornjaPlocaComp = occurrence
-        elif occurrence.component.name.startswith("ukrute"):
+        elif base.startswith("ukrute"):
             ukruteComp = occurrence
-        elif occurrence.component.name.startswith("fronta lijevo"):
+        elif base.startswith("fronta lijevo"):
             lijevaFrontaComp = occurrence
-        elif occurrence.component.name.startswith("fronta desno"):
+        elif base.startswith("fronta desno"):
             desnaFrontaComp = occurrence
-        elif occurrence.component.name.startswith("cokla"):
+        elif base.startswith("cokla"):
             coklaComp = occurrence
-        elif occurrence.component.name.startswith("nogice"):
+        elif base.startswith("nogice"):
             nogiceComp = occurrence
-        elif occurrence.component.name.startswith("pregrada"):
+        elif base.startswith("pregrada"):
             pregradaComp = occurrence
-        elif occurrence.component.name.startswith("polica"):
+        elif base.startswith("polica"):
             policaComp.append(occurrence)
 
         if all(comp is not None for comp in components_to_find):
@@ -937,7 +943,7 @@ def apply_finish(prefix):
     # component's `allOccurrences` gives proxies missing the root->wrapper step,
     # and BRepFace.appearance then raises InternalValidationError.
     def _paint_tree(occ):
-        spec = base_design.spec_name_for_component(occ.component.name)
+        spec = base_design.spec_name_for_component(occ.component.name, prefix)
         if spec is not None:
             if spec not in face_appr_cache:
                 face_appr_cache[spec] = _decor_appearance(
@@ -979,19 +985,20 @@ def _entity_to_occurrence(entity):
 def _resolve_board_context(occ):
     """From a picked leaf occurrence -> (spec, prefix, holder, flags), or None
     if it is not a recognised board."""
-    spec = base_design.spec_name_for_component(occ.component.name)
-    if spec is None:
-        return None
     design = adsk.fusion.Design.cast(app.activeProduct)
     # fullPathName is "<wrapper>:1+<child>:1..." -> first token is the cabinet
     wrapper_name = occ.fullPathName.split("+")[0].split(":")[0]
+    prefix = wrapper_name + "_"
+    # resolve the spec with the cabinet prefix so scoped names ('O2_polica') map
+    spec = base_design.spec_name_for_component(occ.component.name, prefix)
+    if spec is None:
+        return None
     wrapper = next(
         (o for o in design.rootComponent.occurrences
          if o.component.name == wrapper_name),
         None,
     )
     holder = wrapper if wrapper is not None else design.rootComponent
-    prefix = wrapper_name + "_"
     return spec, prefix, holder, _cabinet_flags(design, prefix)
 
 
@@ -1052,7 +1059,7 @@ def _iter_cabinet_boards(design):
         stack = [wrapper]
         while stack:
             occ = stack.pop()
-            spec = base_design.spec_name_for_component(occ.component.name)
+            spec = base_design.spec_name_for_component(occ.component.name, prefix)
             if spec is not None and spec not in seen:
                 seen.add(spec)
                 yield prefix, spec, wrapper, flags

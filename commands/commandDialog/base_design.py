@@ -158,7 +158,7 @@ _DOOR_OPEN_MAX_DEG = 110.0
 # +Z (size_z), "XZ" extrudes +Y (size_y), "YZ" extrudes +X (size_x).
 PANELS = [
     {
-        "name": "donja_ploca",
+        "name": "donja ploca",
         "plane": "XY",
         "size": ("{p}donja_sirina", "{p}donja_ploca_dubina", "{p}donja_ploca_debljina"),
         # grounded reference part: stays at the parent origin
@@ -187,7 +187,7 @@ PANELS = [
         },
     },
     {
-        "name": "bok_lijevo",
+        "name": "bok lijevo",
         "plane": "YZ",
         "size": ("{p}bok_lijevo_debljina", "{p}bok_lijevo_dubina", "{p}bok_visina"),
         "pos": (_XI + " + " + _WIN, "-{p}ledja_debljina", _BOK_Z),
@@ -211,7 +211,7 @@ PANELS = [
         "banding": {},
     },
     {
-        "name": "gornja_ploca",
+        "name": "gornja ploca",
         "plane": "XY",
         "size": ("{p}gornja_sirina", "{p}gornja_ploca_dubina", "{p}gornja_debljina"),
         "pos": (
@@ -396,7 +396,7 @@ PLANE_BY_NAME = {s["name"]: s["plane"] for s in _ALL_SPECS}
 # (interior).  Only visible-outside boards are coloured by default -- the doors
 # and the top panel; the user colours anything else per cabinet in the dialog.
 COLORED_DEFAULTS = {name: False for name in BANDING_BY_NAME}
-for _n in ("fronta desno", "fronta lijevo", "fronta", "gornja_ploca"):
+for _n in ("fronta desno", "fronta lijevo", "fronta", "gornja ploca"):
     COLORED_DEFAULTS[_n] = True
 COLORED_BY_NAME = dict(COLORED_DEFAULTS)
 
@@ -468,22 +468,59 @@ def resolved_colored(name: str, flags: dict, override=None) -> bool:
 _DEDUP_SUFFIX_RE = re.compile(r"\s*\(\d+\)$")
 
 
-def spec_name_for_component(comp_name: str):
+def scoped_name(prefix: str, base: str) -> str:
+    """The cabinet-scoped, globally-unique component name for a part.
+
+    Component names are unique per *design* in Fusion, so a second cabinet that
+    reused the same base names ('polica', ...) used to collide and get an
+    auto-appended ' (N)' suffix.  Prefixing every component with the cabinet's
+    parameter prefix ('O2_polica') keeps them unique deterministically and
+    mirrors the user-parameter naming.  `prefix` includes the trailing '_'."""
+    return prefix + base
+
+
+def base_component_name(comp_name: str, prefix: str = "") -> str:
+    """Recover a component's base name from its Fusion component name: strip the
+    cabinet `prefix` if the name carries it (new scoped naming) and Fusion's
+    ' (N)' uniqueness suffix if present (legacy collided names).  Leaves
+    rectangular-pattern trailing digits ('polica3') for callers that want them."""
+    name = comp_name
+    if prefix and name.startswith(prefix):
+        name = name[len(prefix):]
+    return _DEDUP_SUFFIX_RE.sub("", name)
+
+
+# Board spec names use spaces ("bok lijevo", "gornja ploca").  Older designs
+# were built with underscore variants ("bok_lijevo", "gornja_ploca"), so the
+# resolver matches underscore/space-insensitively -- existing cabinets keep
+# resolving to the current spec name without any migration.  Built from the
+# canonical spec names only (not the board_rules.json overlay) so a stray JSON
+# key can't shadow a real spec.
+def _norm_name(name: str) -> str:
+    return name.replace("_", " ")
+
+
+_NORM_TO_SPEC = {_norm_name(s["name"]): s["name"] for s in _ALL_SPECS}
+
+
+def spec_name_for_component(comp_name: str, prefix: str = ""):
     """Map a Fusion component name to its board spec name, or None if it is not a
-    banded board.  Handles two ways Fusion mangles the base name:
-      * rectangular-pattern copies get a trailing digit ('polica3');
-      * a second cabinet reusing the same component names gets Fusion's
-        uniqueness suffix ' (N)' ('donja_ploca (1)') because component names are
-        globally unique per design.
-    Both are stripped before matching so every cabinet's boards resolve."""
+    banded board.  `prefix` (the cabinet's, e.g. 'O2_') is stripped first so
+    scoped names resolve; it is optional and the resolver stays backward
+    compatible with legacy unprefixed / ' (N)'-suffixed and underscore-vs-space
+    names either way.  Rectangular-pattern copies ('polica3') are also handled."""
     if comp_name in BANDING_BY_NAME:
         return comp_name
-    # strip Fusion's ' (N)' uniqueness suffix first, then pattern-copy digits.
-    name = _DEDUP_SUFFIX_RE.sub("", comp_name)
-    if name in BANDING_BY_NAME:
-        return name
-    base = name.rstrip("0123456789").rstrip()
-    return base if base in BANDING_BY_NAME else None
+    name = base_component_name(comp_name, prefix)
+    # try the name as-is and with pattern-copy trailing digits stripped; each
+    # first exact, then underscore/space-insensitive.
+    for cand in (name, name.rstrip("0123456789").rstrip()):
+        if cand in BANDING_BY_NAME:
+            return cand
+        hit = _NORM_TO_SPEC.get(_norm_name(cand))
+        if hit:
+            return hit
+    return None
 
 
 def _reduce_banding_counts(plane: str, banded, dims):
@@ -552,7 +589,7 @@ def _build_panel(parent_comp: adsk.fusion.Component, spec: dict, prefix: str,
     all driven by parameter expressions."""
     occ = parent_comp.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     comp = occ.component
-    comp.name = spec["name"]
+    comp.name = scoped_name(prefix, spec["name"])
 
     sx, sy, sz = (_fmt(e, prefix) for e in spec["size"])
     ev = lambda e: units.evaluateExpression(e, "cm")
@@ -609,7 +646,7 @@ def _build_leg(parent_comp: adsk.fusion.Component, prefix: str,
     origin drops the leg straight down from that point (see LEG_POSITIONS)."""
     occ = parent_comp.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     comp = occ.component
-    comp.name = "noga"
+    comp.name = scoped_name(prefix, "noga")
 
     diam_expr = _fmt("{p}nogice_promjer", prefix)
     r0 = units.evaluateExpression(diam_expr, "cm") / 2
@@ -726,7 +763,7 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     # --- stiffeners: "ukrute" wrapper with two "ukruta otraga" children ----
     ukrute_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     ukrute_comp = ukrute_occ.component
-    ukrute_comp.name = "ukrute"
+    ukrute_comp.name = scoped_name(prefix, "ukrute")
     first_child = _build_panel(ukrute_comp, UKRUTA, prefix, units)
     _position_occurrence(ukrute_comp, first_child, UKRUTA_POSITIONS[0], prefix, "ukruta")
     second_child = ukrute_comp.occurrences.addExistingComponent(
@@ -747,7 +784,7 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
 
     # back-panel groove cut into both side panels
     ledja_body = _root_occ(occurrences["ledja"]).bRepBodies.item(0)
-    for bok in ("bok desno", "bok_lijevo"):
+    for bok in ("bok desno", "bok lijevo"):
         tools = adsk.core.ObjectCollection.create()
         tools.add(ledja_body)
         cut = combines.createInput(_root_occ(occurrences[bok]).bRepBodies.item(0), tools)
@@ -797,7 +834,7 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     # --- Ultrabox drawer sub-assembly (hidden template) -------------------
     ultrabox_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     ultrabox_comp = ultrabox_occ.component
-    ultrabox_comp.name = "Ultrabox"
+    ultrabox_comp.name = scoped_name(prefix, "Ultrabox")
     for spec in ULTRABOX_PANELS:
         child = _build_panel(ultrabox_comp, spec, prefix, units)
         _position_occurrence(ultrabox_comp, child, spec["pos"], prefix, spec["name"])
@@ -813,7 +850,7 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     # just like the panels.  Off by default (the plinth is on).
     nogice_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     nogice_comp = nogice_occ.component
-    nogice_comp.name = "nogice"
+    nogice_comp.name = scoped_name(prefix, "nogice")
     for i, pos in enumerate(LEG_POSITIONS):
         leg_occ = _build_leg(nogice_comp, prefix, units)
         _position_occurrence(nogice_comp, leg_occ, pos, prefix, f"noga {i + 1}")
@@ -826,7 +863,7 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
             occurrences[spec["name"]].isLightBulbOn = False
     # hide the shelf pattern copies as well
     for occ in root.occurrences:
-        if occ.component.name.startswith("polica"):
+        if base_component_name(occ.component.name, prefix).startswith("polica"):
             occ.isLightBulbOn = False
 
     return occurrences

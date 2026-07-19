@@ -56,7 +56,7 @@ _COL_NAPOMENA = 9    # I  NAPOMENA        board name (Croatian)
 # -> plinth -> doors -> stiffeners -> ultrabox (podnica/zadnja/fronta).  Any
 # board not listed here sorts last, in name order.
 _ROW_ORDER = [
-    "donja_ploca", "bok desno", "bok_lijevo", "ledja", "gornja_ploca",
+    "donja ploca", "bok desno", "bok lijevo", "ledja", "gornja ploca",
     "pregrada", "polica", "cokla", "fronta desno", "fronta lijevo",
     "ukruta otraga", "podnica", "zadnja", "fronta",
 ]
@@ -205,7 +205,7 @@ def _row(cabinet, spec_name, duljina, sirina, world_dims, banded_orients, qty):
     }
 
 
-def _collect_boards(occ, out):
+def _collect_boards(occ, out, prefix=""):
     """Collect ``(spec_name, body)`` for every *visible* board in `occ`'s subtree.
 
     Respects hidden state exactly as the add-in sets it: an occurrence whose
@@ -218,13 +218,13 @@ def _collect_boards(occ, out):
     """
     if not occ.isLightBulbOn:
         return
-    spec_name = base_design.spec_name_for_component(occ.component.name)
+    spec_name = base_design.spec_name_for_component(occ.component.name, prefix)
     if spec_name is not None:
         for body in occ.bRepBodies:
             if body.isSolid:
                 out.append((spec_name, body))
     for child in occ.childOccurrences:
-        _collect_boards(child, out)
+        _collect_boards(child, out, prefix)
 
 
 def _gather_rows(design):
@@ -249,10 +249,10 @@ def _gather_rows(design):
         wrapper = next((o for o in design.rootComponent.occurrences
                         if o.component.name == cabinet), None)
         if wrapper is not None:
-            _collect_boards(wrapper, boards)
+            _collect_boards(wrapper, boards, prefix)
         else:
             for occ in design.rootComponent.occurrences:
-                _collect_boards(occ, boards)
+                _collect_boards(occ, boards, prefix)
         holder = wrapper if wrapper is not None else design.rootComponent
 
         # banded orientations are per board spec (not per instance) -> cache
