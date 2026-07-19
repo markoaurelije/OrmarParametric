@@ -48,6 +48,7 @@ input_items: list[InputItem] = [
         type=InputType.GROUP,
         description="Osnovne Dimenzije",
         input_has_no_param=True,
+        expanded=True,  # the group edited on almost every interaction -> open it
     ),
     InputItem(
         name="sirina",

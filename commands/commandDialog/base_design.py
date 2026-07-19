@@ -45,6 +45,7 @@ list needs.
 """
 
 import math
+import re
 
 import adsk.core
 import adsk.fusion
@@ -464,12 +465,24 @@ def resolved_colored(name: str, flags: dict, override=None) -> bool:
     return _eval_banding_condition(COLORED_BY_NAME.get(name, False), flags)
 
 
+_DEDUP_SUFFIX_RE = re.compile(r"\s*\(\d+\)$")
+
+
 def spec_name_for_component(comp_name: str):
-    """Map a Fusion component name (including rectangular-pattern copies such as
-    'polica3') to its board spec name, or None if it is not a banded board."""
+    """Map a Fusion component name to its board spec name, or None if it is not a
+    banded board.  Handles two ways Fusion mangles the base name:
+      * rectangular-pattern copies get a trailing digit ('polica3');
+      * a second cabinet reusing the same component names gets Fusion's
+        uniqueness suffix ' (N)' ('donja_ploca (1)') because component names are
+        globally unique per design.
+    Both are stripped before matching so every cabinet's boards resolve."""
     if comp_name in BANDING_BY_NAME:
         return comp_name
-    base = comp_name.rstrip("0123456789").rstrip()
+    # strip Fusion's ' (N)' uniqueness suffix first, then pattern-copy digits.
+    name = _DEDUP_SUFFIX_RE.sub("", comp_name)
+    if name in BANDING_BY_NAME:
+        return name
+    base = name.rstrip("0123456789").rstrip()
     return base if base in BANDING_BY_NAME else None
 
 

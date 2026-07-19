@@ -10,8 +10,11 @@ from ..utils import (
     request_add_cabinet,
     request_delete_cabinet,
     load_preset,
+    next_free_cabinet_name,
     set_board_decor,
     set_edge_band,
+    swap_project_decor,
+    refresh_colors_in_use,
     apply_finish,
 )
 from ..dialog_config import InputType, input_items
@@ -38,12 +41,15 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             changed_input = args.input
             futil.log(f"Input changed: {changed_input.id}")
 
-            if changed_input.id in ("finish_paint_select", "finish_band_select"):
+            if changed_input.id in (
+                "finish_paint_select",
+                "finish_band_select",
+                "finish_swap_select",
+            ):
                 # momentary pickers: paint the clicked board the active decor /
-                # toggle the clicked edge's banding, then clear so the next click
-                # works again.  Re-fires with selectionCount == 0, which this
-                # ignores.
-                is_band = changed_input.id == "finish_band_select"
+                # toggle the clicked edge's banding / swap that colour across the
+                # whole project, then clear so the next click works again.
+                # Re-fires with selectionCount == 0, which this ignores.
                 decor_dd = self.inputs.itemById("finish_active_decor")
                 active_decor = (
                     decor_dd.selectedItem.name
@@ -56,13 +62,21 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     for i in range(sel_input.selectionCount):
                         entity = sel_input.selection(i).entity
                         if not active_decor:
-                            result = None
-                        elif is_band:
+                            continue
+                        if changed_input.id == "finish_band_select":
                             result = set_edge_band(entity, active_decor)
-                        else:
+                            if result:
+                                touched.add(result[0])
+                        elif changed_input.id == "finish_swap_select":
+                            # (source, target, affected_prefixes)
+                            result = swap_project_decor(entity, active_decor)
+                            if result:
+                                touched.update(result[2])
+                        else:  # finish_paint_select
                             result = set_board_decor(entity, active_decor)
+                            if result:
+                                touched.add(result[0])
                         if result:
-                            touched.add(result[0])
                             futil.log(f"Finish change: {result}")
                     sel_input.clearSelection()
                     # repaint the affected cabinet(s) now for immediate feedback
@@ -70,6 +84,8 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     # a selection-only change).
                     for prefix in touched:
                         apply_finish(prefix)
+                    if touched:
+                        refresh_colors_in_use(self.inputs)
                 return
 
             if changed_input.id.endswith("_presets"):
@@ -78,14 +94,18 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 load_preset(selected_preset, self.inputs, prefix)
                 return
             elif changed_input.id == "addPresetButton":
-                # get the input valur of 'newComponentName' input
-                new_name = next(
-                    (input for input in self.inputs if input.id == "newComponentName"),
-                    None,
+                # Ask for the name in a plain modal prompt (no inline field, so
+                # no Fusion parameter-name autocomplete) pre-filled with the next
+                # free name.  The cabinet is generated from code into the active
+                # design, so no target-design lookup is needed.
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                name, cancelled = ui.inputBox(
+                    "Ime novog ormara:", "Dodaj ormar", next_free_cabinet_name()
                 )
-                # the cabinet is generated from code into the active design,
-                # so no target-design lookup is needed anymore
-                request_add_cabinet(new_name.text if new_name else "Ox")
+                if cancelled or not name.strip():
+                    return
+                request_add_cabinet(name.strip())
                 return
             elif changed_input.id == "exportCutListButton":
                 app = adsk.core.Application.get()

@@ -7,6 +7,7 @@ from ..utils import (
     materialize_pending_cabinets,
     materialize_pending_deletions,
     apply_finish,
+    refresh_colors_in_use,
     set_component_visibility,
     set_user_parameters_via_inputs,
 )
@@ -58,5 +59,8 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 CommandExecutePreviewHandler.ultrabox_add_fired.get(prefix, 0)
             ):
                 perform_add_ultrabox(prefix, idx + 1)
+
+        # keep the "Boje u projektu" status line current as flags/colours change
+        refresh_colors_in_use(args.command.commandInputs)
 
         futil.log(f"Command Execute Preview Event finished")

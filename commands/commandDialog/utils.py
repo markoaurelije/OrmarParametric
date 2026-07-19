@@ -206,31 +206,47 @@ def set_input_via_userparam(
     )
 
 
-def create_dialog(inputs: adsk.core.CommandInputs):
-    # Create a value input field and set the default using 1 unit of the default length unit.
+def _create_project_tab(inputs: adsk.core.CommandInputs):
+    """Build the leading, design-scope "Projekt" tab.
 
-    #####  CREATING A DIALOG  #####
-    # cabinets are generated from code (base_design.py), so any design can
-    # add one - no J1 base document needed anymore
-    doc = app.activeDocument
-    futil.log(f"Current document: {doc.name}")
-    inputs.addBoolValueInput("addPresetButton", "Dodaj ormar", False, "", True)
-    inputs.addTextBoxCommandInput(
-        "newComponentName", "Ime novog ormara", "O1", 1, False
+    Everything here applies to the *whole design*, not to a single cabinet:
+    adding a cabinet, the design-wide finish palette + click pickers (they act
+    on any clicked board across all cabinets), and the cut-list export.  Keeping
+    them in their own tab is what separates project-level actions from the
+    per-cabinet parameter tabs that follow, so the two scopes never mix.
+    """
+    res_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources")
+    # An icon on this tab sets it apart from the plain-text cabinet tabs.
+    project_tab = inputs.addTabCommandInput("projekt_tab", "Projekt", res_dir)
+    tab = project_tab.children
+
+    # -- Ormari: add a new cabinet ------------------------------------------
+    ormari = tab.addGroupCommandInput("projekt_ormari", "Ormari")
+    ormari.isExpanded = True
+    add_btn = ormari.children.addBoolValueInput(
+        "addPresetButton", "Dodaj ormar", False, "", True
+    )
+    add_btn.tooltip = (
+        "Dodaj novi ormar u dizajn. Ime se traži pri kliku (predloži se sljedeće "
+        "slobodno ime)."
     )
 
-    # Export the cabinets' cut list to an Excel copy of the supplier order form.
-    export_btn = inputs.addBoolValueInput(
-        "exportCutListButton", "Izvezi krojnu listu u Excel", False, "", True
+    # -- Bojanje i kantiranje: design-wide finish palette + pickers ---------
+    finish = tab.addGroupCommandInput("projekt_finish", "Bojanje i kantiranje")
+    finish.isExpanded = True
+
+    # Read-only status line: which decors are currently used in the design.
+    # Refreshed on every preview and after every finish click.
+    colors_box = finish.children.addTextBoxCommandInput(
+        "finish_colors_in_use", "Boje u projektu", _colors_in_use_text(), 1, True
     )
-    export_btn.tooltip = (
-        "Spremi krojnu listu svih ormara u kopiju narudžbenice (.xlsm) na "
-        "Desktop. Predložak narudzba-excel.xlsm se ne mijenja."
+    colors_box.tooltip = (
+        "Boje trenutno korištene na pločama i rubovima u cijelom dizajnu."
     )
 
     # Active decor: the colour the paint-bucket applies.  Populated from the
     # decor palette (decors.json).
-    decor_dd = inputs.addDropDownCommandInput(
+    decor_dd = finish.children.addDropDownCommandInput(
         "finish_active_decor", "Boja", adsk.core.DropDownStyles.TextListDropDownStyle
     )
     for name in _DECOR_ORDER:
@@ -245,7 +261,7 @@ def create_dialog(inputs: adsk.core.CommandInputs):
     # (pick 'Bijela' to send it back to interior white).  It is a momentary
     # picker -- the click sets the board's per-cabinet decor and the selection is
     # cleared immediately; the model itself shows each board's colour.
-    paint_sel = inputs.addSelectionInput(
+    paint_sel = finish.children.addSelectionInput(
         "finish_paint_select", "Oboji ploču", "Klikni ploču za bojanje"
     )
     paint_sel.addSelectionFilter("SolidFaces")
@@ -258,7 +274,7 @@ def create_dialog(inputs: adsk.core.CommandInputs):
 
     # Click-to-band: pick a narrow edge face to band it in the active decor
     # (click again with the same decor to make it raw).
-    band_sel = inputs.addSelectionInput(
+    band_sel = finish.children.addSelectionInput(
         "finish_band_select", "Kantiraj rub", "Klikni rub (usku plohu) za kantiranje"
     )
     band_sel.addSelectionFilter("SolidFaces")
@@ -269,6 +285,44 @@ def create_dialog(inputs: adsk.core.CommandInputs):
         "postane nekantiran (prugast)."
     )
 
+    # Project-wide colour swap from one click: reads the clicked board's current
+    # decor as the source and repaints every board/edge in that colour to the
+    # active decor.
+    swap_sel = finish.children.addSelectionInput(
+        "finish_swap_select",
+        "Zamijeni boju u projektu",
+        "Klikni ploču da sve iste boje postanu odabrana boja",
+    )
+    swap_sel.addSelectionFilter("SolidFaces")
+    swap_sel.setSelectionLimits(0, 0)
+    swap_sel.tooltip = (
+        "Klikni ploču: SVE ploče i rubovi u projektu koji su iste boje kao ta "
+        "ploča postanu odabrana boja ('Boja' gore). Promjena jednim klikom."
+    )
+
+    # -- Izvoz: cut-list export ---------------------------------------------
+    izvoz = tab.addGroupCommandInput("projekt_izvoz", "Izvoz")
+    izvoz.isExpanded = True
+    export_btn = izvoz.children.addBoolValueInput(
+        "exportCutListButton", "Izvezi krojnu listu u Excel", False, "", True
+    )
+    export_btn.tooltip = (
+        "Spremi krojnu listu svih ormara u kopiju narudžbenice (.xlsm) na "
+        "Desktop. Predložak narudzba-excel.xlsm se ne mijenja."
+    )
+
+
+def create_dialog(inputs: adsk.core.CommandInputs):
+    #####  CREATING A DIALOG  #####
+    # cabinets are generated from code (base_design.py), so any design can
+    # add one - no J1 base document needed anymore
+    doc = app.activeDocument
+    futil.log(f"Current document: {doc.name}")
+
+    # Leading tab: whole-design actions (add cabinet / finish palette / export).
+    _create_project_tab(inputs)
+
+    # Then one tab per cabinet, holding only that cabinet's parameters.
     prefixis = get_prefixes()
     for prefix in prefixis:
         futil.log(f"Adding tab: {prefix}")
@@ -327,6 +381,25 @@ def get_prefixes():
     prefixis = sorted(prefixis)
     futil.log(f"found prefixes: {prefixis}")
     return prefixis
+
+
+def next_free_cabinet_name(base: str = "O") -> str:
+    """Suggest the next unused cabinet name (``O1``, ``O2`` ...).
+
+    Checks both the discovered prefixes and the raw parameter list so the
+    suggestion never collides with a cabinet already in the design (a collision
+    would trip request_add_cabinet's "already exist" guard)."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    existing_prefixes = set(get_prefixes())  # e.g. {"J1_", "O1_"}
+    n = 1
+    while True:
+        candidate = f"{base}{n}"
+        if (
+            f"{candidate}_" not in existing_prefixes
+            and design.userParameters.itemByName(f"{candidate}_sirina") is None
+        ):
+            return candidate
+        n += 1
 
 
 def set_user_parameters_via_inputs(inputs: adsk.core.CommandInputs, prefix: str):
@@ -963,6 +1036,115 @@ def set_edge_band(entity, decor_name):
     new_value = "" if current == decor_name else decor_name  # "" = raw
     _session_banding_overrides[(prefix, spec, orient)] = new_value
     return (prefix, spec, orient, new_value)
+
+
+def _iter_cabinet_boards(design):
+    """Yield (prefix, spec, wrapper, flags) for every board across all cabinets,
+    de-duplicated per (prefix, spec).  Mirrors apply_finish's tree walk: each
+    root-level wrapper occurrence that owns our `<name>_sirina` parameter is a
+    cabinet, and its whole occurrence subtree is scanned for board components."""
+    for wrapper in design.rootComponent.occurrences:
+        prefix = wrapper.component.name + "_"
+        if design.userParameters.itemByName(prefix + "sirina") is None:
+            continue  # not one of our cabinets
+        flags = _cabinet_flags(design, prefix)
+        seen = set()
+        stack = [wrapper]
+        while stack:
+            occ = stack.pop()
+            spec = base_design.spec_name_for_component(occ.component.name)
+            if spec is not None and spec not in seen:
+                seen.add(spec)
+                yield prefix, spec, wrapper, flags
+            for child in occ.childOccurrences:
+                stack.append(child)
+
+
+def _remap_decor_everywhere(design, source_decor, target_decor):
+    """Repaint every board and edge-band whose *current* colour is `source_decor`
+    to `target_decor`, across all cabinets, via the session-override store (so it
+    previews live and persists on OK).  Returns the set of affected prefixes.
+
+    Rule-banded edges that merely follow their board's colour are left untouched
+    when that board is itself being remapped -- they keep tracking the board
+    automatically -- so only genuinely source-coloured faces/edges are pinned."""
+    affected = set()
+    for prefix, spec, holder, flags in _iter_cabinet_boards(design):
+        # snapshot both before mutating, so banding defaults still reflect the
+        # pre-swap board decor
+        cur_decor = effective_decor(design, prefix, spec, holder, flags)
+        cur_bands = effective_banding(design, prefix, spec, holder, flags)
+
+        if cur_decor == source_decor:
+            _session_decor_overrides[(prefix, spec)] = target_decor
+            affected.add(prefix)
+
+        for orient, band_decor in cur_bands.items():
+            if band_decor != source_decor:
+                continue
+            # a rule-default band matching a board that's also being remapped
+            # will follow the board on its own; don't pin it.
+            if (
+                cur_decor == source_decor
+                and _raw_banding_override(prefix, spec, orient, holder) is None
+            ):
+                continue
+            _session_banding_overrides[(prefix, spec, orient)] = target_decor
+            affected.add(prefix)
+    return affected
+
+
+def swap_project_decor(entity, target_decor):
+    """Project-wide colour swap from a single click.  Reads the clicked board's
+    current decor as the *source*, then remaps every board and edge-band in that
+    colour -- across all cabinets -- to `target_decor`.  Returns
+    (source_decor, target_decor, affected_prefixes) or None if the pick is not a
+    recognised board.  A no-op (source == target) returns an empty prefix set."""
+    occ = _entity_to_occurrence(entity)
+    if occ is None:
+        return None
+    ctx = _resolve_board_context(occ)
+    if ctx is None:
+        return None
+    spec, prefix, holder, flags = ctx
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    source_decor = effective_decor(design, prefix, spec, holder, flags)
+    if source_decor == target_decor:
+        return (source_decor, target_decor, set())
+    affected = _remap_decor_everywhere(design, source_decor, target_decor)
+    return (source_decor, target_decor, affected)
+
+
+def decors_in_use():
+    """The distinct decors currently painted on any board face or edge-band in
+    the design, in palette order (unknown names sorted last)."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    used = set()
+    for prefix, spec, holder, flags in _iter_cabinet_boards(design):
+        used.add(effective_decor(design, prefix, spec, holder, flags))
+        used.update(effective_banding(design, prefix, spec, holder, flags).values())
+    ordered = [d for d in _DECOR_ORDER if d in used]
+    ordered += sorted(d for d in used if d not in _DECOR_ORDER)
+    return ordered
+
+
+def _colors_in_use_text():
+    names = decors_in_use()
+    return ", ".join(names) if names else "(nema)"
+
+
+def refresh_colors_in_use(inputs: adsk.core.CommandInputs):
+    """Update the read-only "Boje u projektu" status line to the current set of
+    in-use decors.  Safe to call every preview / after every finish click."""
+    box = inputs.itemById("finish_colors_in_use") if inputs else None
+    if box is None:
+        return
+    try:
+        text = _colors_in_use_text()
+        if box.formattedText != text:
+            box.formattedText = text
+    except Exception as e:
+        futil.log(f"refresh_colors_in_use failed: {e}")
 
 
 def get_design_by_name(
