@@ -3,6 +3,7 @@ import adsk, adsk.core
 from ....lib import fusionAddInUtils as futil
 from ..utils import (
     collect_delete_requests,
+    reseat_free_wrappers,
     get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
@@ -16,14 +17,15 @@ from ...commandDialog.ultrabox import perform_add_ultrabox
 
 class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
     ultrabox_add_fired: dict[str, int] = defaultdict(int)
-    pending_cabinets: set = set()
+    # cabinet name -> template ("predložak") name, or None for the base cabinet
+    pending_cabinets: dict = {}
     pending_deletions: set = set()
 
     def __init__(self):
         super().__init__()
         futil.log("CommandExecutePreviewHandler created")
         CommandExecutePreviewHandler.ultrabox_add_fired = defaultdict(int)
-        CommandExecutePreviewHandler.pending_cabinets = set()
+        CommandExecutePreviewHandler.pending_cabinets = {}
         CommandExecutePreviewHandler.pending_deletions = set()
 
     def __del__(self):
@@ -51,6 +53,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         prefixis = get_prefixes()
 
         for prefix in prefixis:
+            reseat_free_wrappers(prefix)
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
             set_component_visibility(prefix)
             apply_finish(prefix)

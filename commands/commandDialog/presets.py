@@ -1,3 +1,28 @@
+"""Cabinet templates ("predlošci").
+
+A template is a named, complete set of parameter values applied to a cabinet
+either at creation time (the "Predložak" dropdown next to "Dodaj ormar") or
+afterwards via the per-cabinet-tab "Predložak" dropdown.
+
+Templates live in presets.json next to this module (hand-editable, same
+pattern as decors.json / board_rules.json).  The built-in lists below are only
+the fallback used when that file is missing or unreadable.  "Spremi kao
+predložak" in the dialog writes a cabinet's current parameters back into
+presets.json under a chosen name — an existing name overwrites (edits) that
+template, a new name adds one.
+
+Inside an expression the source cabinet's prefix is stored as the literal
+placeholder "{prefix}" so cross-parameter references stay portable; utils
+replaces it with the target cabinet's prefix when the template is applied.
+"""
+
+import json
+import os
+
+_PRESETS_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "presets.json"
+)
+
 kuhinja_viseci_element = [
     {
         "paramName": "sirina",
@@ -335,8 +360,32 @@ komoda = [
     },
     {"paramName": "cokla_visina", "expression": "60.0 mm"},
 ]
-presets = {
-    "kuhinja_viseci_element": kuhinja_viseci_element,
-    "kuhinja_donji_element": kuhinja_donji_element,
-    "komoda": komoda,
+_BUILTIN_PRESETS = {
+    "Kuhinja - viseći element": kuhinja_viseci_element,
+    "Kuhinja - donji element": kuhinja_donji_element,
+    "Komoda": komoda,
 }
+
+
+def get_presets() -> dict:
+    """All templates by display name: presets.json if readable, else built-ins."""
+    try:
+        with open(_PRESETS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and data:
+            return data
+    except Exception:
+        pass
+    return dict(_BUILTIN_PRESETS)
+
+
+def save_preset(name: str, params: list) -> None:
+    """Add or overwrite one template in presets.json.
+
+    The file is (re)written with the full current template set, so the first
+    save seeds it from the built-ins and later hand-edits are preserved."""
+    all_presets = get_presets()
+    all_presets[name] = params
+    with open(_PRESETS_FILE, "w", encoding="utf-8") as f:
+        json.dump(all_presets, f, ensure_ascii=False, indent=2)
+        f.write("\n")

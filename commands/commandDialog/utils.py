@@ -3,11 +3,16 @@ import json
 from typing import Optional
 import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
-from ..commandDialog.presets import presets
+from ..commandDialog import presets as presets_store
 from ..commandDialog import base_design
 from ...lib import fusionAddInUtils as futil
 
 app = adsk.core.Application.get()
+
+# Template ("predložak") UI labels: the neutral first item of each cabinet
+# tab's template dropdown, and the "no template" choice for a new cabinet.
+PRESET_PLACEHOLDER = "(odaberi predložak)"
+NO_PRESET_ITEM = "Osnovni ormar"
 
 
 def _find_command_input(input_container, input_id):
@@ -223,12 +228,30 @@ def _create_project_tab(inputs: adsk.core.CommandInputs):
     # -- Ormari: add a new cabinet ------------------------------------------
     ormari = tab.addGroupCommandInput("projekt_ormari", "Ormari")
     ormari.isExpanded = True
+
+    # Template to build the new cabinet from: "Osnovni ormar" is the plain
+    # code-generated cabinet, any other choice applies that template's full
+    # parameter set right after generation.
+    preset_dd = ormari.children.addDropDownCommandInput(
+        "new_cabinet_preset",
+        "Predložak",
+        adsk.core.DropDownStyles.TextListDropDownStyle,
+    )
+    preset_dd.listItems.add(NO_PRESET_ITEM, True, "")
+    for preset_name in presets_store.get_presets():
+        preset_dd.listItems.add(preset_name, False, "")
+    preset_dd.tooltip = (
+        "Predložak za novi ormar: 'Osnovni ormar' stvara ormar sa zadanim "
+        "parametrima, a predložak odmah postavlja sve parametre (npr. "
+        "kuhinjski donji element)."
+    )
+
     add_btn = ormari.children.addBoolValueInput(
-        "addPresetButton", "Dodaj ormar", False, "", True
+        "addCabinetButton", "Dodaj ormar", False, "", True
     )
     add_btn.tooltip = (
-        "Dodaj novi ormar u dizajn. Ime se traži pri kliku (predloži se sljedeće "
-        "slobodno ime)."
+        "Dodaj novi ormar u dizajn prema odabranom predlošku. Ime se traži pri "
+        "kliku (predloži se sljedeće slobodno ime)."
     )
 
     # -- Bojanje i kantiranje: design-wide finish palette + pickers ---------
@@ -329,11 +352,23 @@ def create_dialog(inputs: adsk.core.CommandInputs):
         tab_input = inputs.addTabCommandInput(prefix, prefix)
         dropdown = tab_input.children.addDropDownCommandInput(
             f"{prefix}presets",
-            "Presets",
+            "Predložak",
             adsk.core.DropDownStyles.LabeledIconDropDownStyle,
         )
-        for key in presets.keys():
-            dropdown.listItems.add(key, False, "")
+        dropdown.listItems.add(PRESET_PLACEHOLDER, True, "")
+        for preset_name in presets_store.get_presets():
+            dropdown.listItems.add(preset_name, False, "")
+        dropdown.tooltip = (
+            "Primijeni predložak na ovaj ormar (postavlja sve njegove parametre)."
+        )
+
+        save_btn = tab_input.children.addBoolValueInput(
+            f"{prefix}save_preset", "Spremi kao predložak", False, "", False
+        )
+        save_btn.tooltip = (
+            "Spremi trenutne parametre ovog ormara kao imenovani predložak "
+            "(postojeće ime = uredi/prepiši predložak, novo ime = dodaj novi)."
+        )
 
         # delete-cabinet button (per tab)
         tab_input.children.addBoolValueInput(
@@ -381,6 +416,81 @@ def get_prefixes():
     prefixis = sorted(prefixis)
     futil.log(f"found prefixes: {prefixis}")
     return prefixis
+
+
+def reseat_free_wrappers(prefix: str):
+    """Self-healing pass, run every preview/execute cycle per cabinet.
+
+    Cabinets are meant to live in a multi-cabinet design where the *cabinet
+    root occurrences* get connected to each other with user-created joints
+    (at most one cabinet grounded as the design's anchor) - so this must
+    never touch a cabinet's own root occurrence, its grounding, or its
+    position. Forcing every free cabinet root to ``isGrounded`` would fight
+    that workflow directly (a cabinet the user is about to joint to another
+    one needs to stay free/unconstrained until that joint exists).
+
+    What *does* need self-healing is internal to a single cabinet, and comes
+    in two flavours, both harmless regardless of how the cabinet root itself
+    is constrained (grounded, jointed to another cabinet, or fully free):
+
+    1. Any child occurrence with **no joint of its own is a free rigid body**
+       Fusion lets the user click-drag anywhere in the viewport - a shelf
+       pattern only joints its *seed* occurrence (the first shelf); the
+       ``broj_polica``-driven copies get no joint at all, so without this
+       fix every shelf but the first can be dragged out of the cabinet. Any
+       such un-jointed occurrence is grounded *to its own parent* (the
+       cabinet component), which stops it being draggable without
+       interfering with whatever still legitimately drives its position
+       (verified live: a grounded pattern copy keeps updating correctly
+       across ``broj_polica`` changes). Grounding *is* skipped for anything
+       referenced by one of the cabinet's own joints - forcing that as well
+       conflicts with the joint and freezes the part at the wrong position
+       (confirmed live: grounding the already-jointed seed shelf broke it).
+    2. The joint-less ``ukrute``/``nogice`` wrapper occurrences additionally
+       have *nothing at all* driving their transform (unlike pattern copies,
+       which the pattern feature keeps recomputing), so besides grounding
+       they can also end up stranded at a stale position if the cabinet
+       moves. Reset those two specifically to the cabinet's exact frame
+       (full matrix, not just translation, so a cabinet joined to another at
+       an angle is handled correctly too).
+    """
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    cabinet_name = prefix.rstrip("_")
+    occ = next(
+        (o for o in design.rootComponent.occurrences
+         if o.component.name == cabinet_name),
+        None,
+    )
+    if occ is None:
+        return
+    try:
+        jointed_names = set()
+        for j in occ.component.joints:
+            if j.occurrenceOne is not None:
+                jointed_names.add(j.occurrenceOne.name)
+            if j.occurrenceTwo is not None:
+                jointed_names.add(j.occurrenceTwo.name)
+
+        cab_transform = occ.transform2
+        for child in occ.childOccurrences:
+            if child.name in jointed_names:
+                continue  # already fully constrained by a real joint
+
+            base = base_design.base_component_name(child.component.name, prefix)
+            if base in ("ukrute", "nogice") and not child.transform2.isEqualTo(cab_transform):
+                # proxy from root: world frame; the wrapper's correct frame
+                # is exactly the cabinet's own (local identity within it)
+                child.transform2 = cab_transform.copy()
+                futil.log(f"Re-seated stranded wrapper '{child.component.name}'")
+
+            if not child.isGroundToParent:
+                child.isGroundToParent = True
+                futil.log(f"Grounded free occurrence '{child.component.name}' to its cabinet")
+    except Exception as e:
+        futil.log(
+            f"reseat_free_wrappers({prefix}) failed: {e}",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
 
 
 def next_free_cabinet_name(base: str = "O") -> str:
@@ -1190,10 +1300,18 @@ def get_design_by_name(
         return None
 
 
+def _preset_expression(expression: str, prefix: str) -> str:
+    """Resolve a template expression's "{prefix}" placeholder (see presets.py)
+    against the target cabinet's prefix."""
+    return expression.replace("{prefix}", prefix)
+
+
 def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str = "J1_"):
-    preset = presets.get(preset_name)
+    preset = presets_store.get_presets().get(preset_name)
     if not preset:
-        futil.log("Preset not found", adsk.core.LogLevels.ErrorLogLevel)
+        futil.log(
+            f"Template '{preset_name}' not found", adsk.core.LogLevels.ErrorLogLevel
+        )
         return
 
     # set the input values to the preset values
@@ -1211,14 +1329,82 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
             continue
         input_param = input_param[0]
 
-        set_user_parameter(f"{prefix}{input_param.name}", param["expression"])
+        set_user_parameter(
+            f"{prefix}{input_param.name}",
+            _preset_expression(param["expression"], prefix),
+        )
         set_input_via_userparam(input_param, inputs, prefix)
 
     set_component_visibility(prefix)
 
 
-def request_add_cabinet(new_component_name: str):
-    """Handle a "Dodaj ormar" click.
+def apply_preset_params(cabinet_name: str, preset_name: str):
+    """Set a freshly generated cabinet's user parameters from a template.
+
+    Used by the add-cabinet flow, where the new cabinet has no dialog tab yet,
+    so parameters are written directly (visibility/finish are applied by the
+    normal per-prefix pass that runs right after materialization)."""
+    preset = presets_store.get_presets().get(preset_name)
+    if not preset:
+        futil.log(
+            f"Template '{preset_name}' not found", adsk.core.LogLevels.ErrorLogLevel
+        )
+        return
+    prefix = f"{cabinet_name}_"
+    for param in preset:
+        set_user_parameter(
+            prefix + param["paramName"],
+            _preset_expression(param["expression"], prefix),
+        )
+
+
+def save_cabinet_as_preset(prefix: str, preset_name: str):
+    """Save a cabinet's current parameter values as a named template.
+
+    Reads every dialog-managed user parameter of the cabinet and writes the
+    full set into presets.json (existing name = overwrite/edit, new name =
+    add).  The cabinet's own prefix inside an expression is stored as the
+    "{prefix}" placeholder so cross-parameter references stay portable."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    params = []
+    for item in input_items:
+        if item.input_has_no_param:
+            continue
+        user_param = design.userParameters.itemByName(prefix + item.name)
+        if user_param is None:
+            continue
+        params.append(
+            {
+                "paramName": item.name,
+                "expression": user_param.expression.replace(prefix, "{prefix}"),
+            }
+        )
+    presets_store.save_preset(preset_name, params)
+    futil.log(f"Saved template '{preset_name}' ({len(params)} params) from {prefix}")
+
+
+def refresh_preset_dropdowns(inputs: adsk.core.CommandInputs):
+    """Add newly saved template names to the open dialog's template dropdowns
+    (the project tab's new-cabinet one and each cabinet tab's) so a template
+    saved mid-session is immediately selectable."""
+    names = list(presets_store.get_presets().keys())
+    dropdown_ids = ["new_cabinet_preset"] + [f"{p}presets" for p in get_prefixes()]
+    for dropdown_id in dropdown_ids:
+        dropdown = adsk.core.DropDownCommandInput.cast(
+            _find_command_input(inputs, dropdown_id)
+        )
+        if not dropdown:
+            continue
+        existing = {
+            dropdown.listItems.item(i).name for i in range(dropdown.listItems.count)
+        }
+        for name in names:
+            if name not in existing:
+                dropdown.listItems.add(name, False, "")
+
+
+def request_add_cabinet(new_component_name: str, preset_name: Optional[str] = None):
+    """Handle a "Dodaj ormar" click, optionally applying a template.
 
     J1 is kept pristine: it has no special role anymore (nothing is copied
     from it), but a cabinet generated at the origin would land exactly on
@@ -1251,6 +1437,12 @@ def request_add_cabinet(new_component_name: str):
             app.userInterface.messageBox(str(e), "Error")
             return
         futil.log(f"New cabinet generated: {occurrence.component.name}")
+        if preset_name:
+            # no dialog is attached to the brand-new document, so apply the
+            # template and the resulting visibility/finish directly
+            apply_preset_params(new_component_name, preset_name)
+            set_component_visibility(f"{new_component_name}_")
+            apply_finish(f"{new_component_name}_")
         return
 
     design = adsk.fusion.Design.cast(app.activeProduct)
@@ -1266,29 +1458,37 @@ def request_add_cabinet(new_component_name: str):
         CommandExecutePreviewHandler,
     )
 
-    CommandExecutePreviewHandler.pending_cabinets.add(new_component_name)
-    CommandExecuteHandler.pending_cabinets.add(new_component_name)
-    futil.log(f"Queued cabinet '{new_component_name}' to materialize on next preview/execute")
+    CommandExecutePreviewHandler.pending_cabinets[new_component_name] = preset_name
+    CommandExecuteHandler.pending_cabinets[new_component_name] = preset_name
+    futil.log(
+        f"Queued cabinet '{new_component_name}' (template: {preset_name}) "
+        "to materialize on next preview/execute"
+    )
 
 
 _materializing = False
 
 
-def materialize_pending_cabinets(pending_cabinet_names: set):
+def materialize_pending_cabinets(pending_cabinets: dict):
+    """pending_cabinets maps cabinet name -> template name (or None)."""
     global _materializing
-    if not pending_cabinet_names or _materializing:
+    if not pending_cabinets or _materializing:
         # guards against reentrant preview/execute cycles Fusion may pump
         # while add_cabinet's own API calls are still running
         return
     _materializing = True
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
-        for name in pending_cabinet_names:
+        for name, preset_name in pending_cabinets.items():
             if design.userParameters.itemByName(f"{name}_sirina"):
                 continue  # already persisted this cycle (e.g. on execute, no rollback happened)
             try:
                 base_design.add_cabinet(design, name)
-                futil.log(f"Materialized pending cabinet '{name}'")
+                if preset_name:
+                    apply_preset_params(name, preset_name)
+                futil.log(
+                    f"Materialized pending cabinet '{name}' (template: {preset_name})"
+                )
             except ValueError as e:
                 futil.log(
                     f"Failed to materialize cabinet '{name}': {e}",

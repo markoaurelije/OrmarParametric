@@ -762,6 +762,11 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
 
     # --- stiffeners: "ukrute" wrapper with two "ukruta otraga" children ----
     ukrute_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    # The wrapper has no joint of its own, so it must be grounded to the
+    # parent: a free occurrence does not follow the jointed cluster when the
+    # cabinet is moved or its joints recompute, leaving the stiffeners
+    # stranded at the cabinet's old position.
+    ukrute_occ.isGroundToParent = True
     ukrute_comp = ukrute_occ.component
     ukrute_comp.name = scoped_name(prefix, "ukrute")
     first_child = _build_panel(ukrute_comp, UKRUTA, prefix, units)
@@ -831,6 +836,17 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     pattern_input.quantityTwo = adsk.core.ValueInput.createByString("1")
     patterns.add(pattern_input)
 
+    # Pattern copies get no joint of their own (only the seed shelf does), so
+    # without grounding they'd be free rigid bodies the user could drag
+    # anywhere in the viewport. utils.reseat_free_wrappers re-grounds any new
+    # copy every preview/execute cycle as broj_polica changes, but ground the
+    # one(s) created here too so a freshly built cabinet is clean immediately.
+    polica_comp_name = occurrences["polica"].component.name
+    for occ_candidate in root.occurrences:
+        if (occ_candidate.component.name == polica_comp_name
+                and occ_candidate.name != occurrences["polica"].name):
+            occ_candidate.isGroundToParent = True
+
     # --- Ultrabox drawer sub-assembly (hidden template) -------------------
     ultrabox_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     ultrabox_comp = ultrabox_occ.component
@@ -849,6 +865,8 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     # Giving each leg its own component keeps every joint origin native (hidden),
     # just like the panels.  Off by default (the plinth is on).
     nogice_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    # ground the joint-less wrapper, same reason as the ukrute wrapper above
+    nogice_occ.isGroundToParent = True
     nogice_comp = nogice_occ.component
     nogice_comp.name = scoped_name(prefix, "nogice")
     for i, pos in enumerate(LEG_POSITIONS):

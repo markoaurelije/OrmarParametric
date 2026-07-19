@@ -10,12 +10,16 @@ from ..utils import (
     request_add_cabinet,
     request_delete_cabinet,
     load_preset,
+    save_cabinet_as_preset,
+    refresh_preset_dropdowns,
     next_free_cabinet_name,
     set_board_decor,
     set_edge_band,
     swap_project_decor,
     refresh_colors_in_use,
     apply_finish,
+    NO_PRESET_ITEM,
+    PRESET_PLACEHOLDER,
 )
 from ..dialog_config import InputType, input_items
 
@@ -90,22 +94,63 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
             if changed_input.id.endswith("_presets"):
                 prefix = changed_input.id[: -len("presets")]
-                selected_preset = changed_input.selectedItem.name
-                load_preset(selected_preset, self.inputs, prefix)
+                selected = changed_input.selectedItem
+                if selected and selected.name != PRESET_PLACEHOLDER:
+                    load_preset(selected.name, self.inputs, prefix)
                 return
-            elif changed_input.id == "addPresetButton":
+            elif changed_input.id.endswith("_save_preset"):
+                # Save this cabinet's current parameters as a named template.
+                prefix = changed_input.id[: -len("save_preset")]
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                # Default to the tab's currently selected template so plain
+                # Enter edits (overwrites) it; otherwise suggest the cabinet's
+                # own name as a starting point.
+                dropdown = adsk.core.DropDownCommandInput.cast(
+                    self.inputs.itemById(f"{prefix}presets")
+                )
+                default_name = (
+                    dropdown.selectedItem.name
+                    if dropdown
+                    and dropdown.selectedItem
+                    and dropdown.selectedItem.name != PRESET_PLACEHOLDER
+                    else prefix.rstrip("_")
+                )
+                name, cancelled = ui.inputBox(
+                    "Ime predloška (postojeće ime = prepiši):",
+                    "Spremi predložak",
+                    default_name,
+                )
+                if cancelled or not name.strip():
+                    return
+                save_cabinet_as_preset(prefix, name.strip())
+                refresh_preset_dropdowns(self.inputs)
+                ui.messageBox(f"Predložak '{name.strip()}' spremljen.")
+                return
+            elif changed_input.id == "addCabinetButton":
                 # Ask for the name in a plain modal prompt (no inline field, so
                 # no Fusion parameter-name autocomplete) pre-filled with the next
                 # free name.  The cabinet is generated from code into the active
-                # design, so no target-design lookup is needed.
+                # design (from the template chosen in the "Predložak" dropdown),
+                # so no target-design lookup is needed.
                 app = adsk.core.Application.get()
                 ui = app.userInterface
+                preset_dd = adsk.core.DropDownCommandInput.cast(
+                    self.inputs.itemById("new_cabinet_preset")
+                )
+                preset_name = (
+                    preset_dd.selectedItem.name
+                    if preset_dd and preset_dd.selectedItem
+                    else None
+                )
+                if preset_name == NO_PRESET_ITEM:
+                    preset_name = None
                 name, cancelled = ui.inputBox(
                     "Ime novog ormara:", "Dodaj ormar", next_free_cabinet_name()
                 )
                 if cancelled or not name.strip():
                     return
-                request_add_cabinet(name.strip())
+                request_add_cabinet(name.strip(), preset_name)
                 return
             elif changed_input.id == "exportCutListButton":
                 app = adsk.core.Application.get()
