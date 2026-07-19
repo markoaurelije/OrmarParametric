@@ -2,22 +2,36 @@
 
 A template is a named, complete set of parameter values applied to a cabinet
 either at creation time (the "Predložak" dropdown next to "Dodaj ormar") or
-afterwards via the per-cabinet-tab "Predložak" dropdown.
+afterwards via the per-cabinet-tab "Predložak" dropdown.  It also carries the
+board finish (decor colours + edge banding) captured at save time, so
+applying a template reproduces the source cabinet's look, not just its
+dimensions.
 
 Templates live in presets.json next to this module (hand-editable, same
 pattern as decors.json / board_rules.json).  The built-in lists below are only
-the fallback used when that file is missing or unreadable.  "Spremi kao
-predložak" in the dialog writes a cabinet's current parameters back into
-presets.json under a chosen name — an existing name overwrites (edits) that
-template, a new name adds one.
+the fallback used when that file is missing or unreadable — they carry no
+finish data, so cabinets built from them keep the normal rule-default colours
+until the user picks something.  "Spremi kao predložak" in the dialog writes a
+cabinet's current parameters + finish back into presets.json under a chosen
+name — an existing name overwrites (edits) that template, a new name adds one.
 
 Inside an expression the source cabinet's prefix is stored as the literal
 placeholder "{prefix}" so cross-parameter references stay portable; utils
 replaces it with the target cabinet's prefix when the template is applied.
+
+On-disk / in-memory shape of one template's value, either:
+  - a bare list of {"paramName", "expression"} (legacy, no finish data), or
+  - {"params": [...], "finish": {"boards": {spec: {"decor": name,
+    "banding": {orient: decor_name}}}}} (spec is a board type name like
+    "polica" or "bok lijevo" -- see base_design.BANDING_BY_NAME -- not a
+    per-instance id, so it applies uniformly regardless of e.g. shelf count).
+Use preset_params()/preset_finish() below rather than reading either shape
+directly, so callers don't need to know which one a given template uses.
 """
 
 import json
 import os
+from typing import Optional
 
 _PRESETS_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "presets.json"
@@ -379,13 +393,29 @@ def get_presets() -> dict:
     return dict(_BUILTIN_PRESETS)
 
 
-def save_preset(name: str, params: list) -> None:
+def preset_params(preset) -> list:
+    """The {"paramName", "expression"} list of a template, whichever on-disk
+    shape it uses (see module docstring)."""
+    if isinstance(preset, dict):
+        return preset.get("params", [])
+    return preset or []
+
+
+def preset_finish(preset) -> dict:
+    """The template's finish payload: {"boards": {spec: {"decor", "banding"}}},
+    or {} for a legacy (or finish-less) template."""
+    if isinstance(preset, dict):
+        return preset.get("finish", {})
+    return {}
+
+
+def save_preset(name: str, params: list, finish: Optional[dict] = None) -> None:
     """Add or overwrite one template in presets.json.
 
     The file is (re)written with the full current template set, so the first
     save seeds it from the built-ins and later hand-edits are preserved."""
     all_presets = get_presets()
-    all_presets[name] = params
+    all_presets[name] = {"params": params, "finish": finish or {}}
     with open(_PRESETS_FILE, "w", encoding="utf-8") as f:
         json.dump(all_presets, f, ensure_ascii=False, indent=2)
         f.write("\n")

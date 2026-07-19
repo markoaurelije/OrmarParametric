@@ -1155,6 +1155,23 @@ def set_edge_band(entity, decor_name):
     return (prefix, spec, orient, new_value)
 
 
+def _board_specs_in_tree(wrapper, prefix):
+    """Board spec names ("polica", "bok lijevo", ...) found anywhere in wrapper's
+    occurrence subtree, de-duplicated -- the board *types* this cabinet has,
+    mirroring apply_finish's tree walk (used both to iterate a cabinet's boards
+    for finish lookups and to snapshot them into a saved template)."""
+    seen = set()
+    stack = [wrapper]
+    while stack:
+        occ = stack.pop()
+        spec = base_design.spec_name_for_component(occ.component.name, prefix)
+        if spec is not None:
+            seen.add(spec)
+        for child in occ.childOccurrences:
+            stack.append(child)
+    return seen
+
+
 def _iter_cabinet_boards(design):
     """Yield (prefix, spec, wrapper, flags) for every board across all cabinets,
     de-duplicated per (prefix, spec).  Mirrors apply_finish's tree walk: each
@@ -1165,16 +1182,8 @@ def _iter_cabinet_boards(design):
         if design.userParameters.itemByName(prefix + "sirina") is None:
             continue  # not one of our cabinets
         flags = _cabinet_flags(design, prefix)
-        seen = set()
-        stack = [wrapper]
-        while stack:
-            occ = stack.pop()
-            spec = base_design.spec_name_for_component(occ.component.name, prefix)
-            if spec is not None and spec not in seen:
-                seen.add(spec)
-                yield prefix, spec, wrapper, flags
-            for child in occ.childOccurrences:
-                stack.append(child)
+        for spec in _board_specs_in_tree(wrapper, prefix):
+            yield prefix, spec, wrapper, flags
 
 
 def _remap_decor_everywhere(design, source_decor, target_decor):
@@ -1315,7 +1324,7 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
         return
 
     # set the input values to the preset values
-    for param in preset:
+    for param in presets_store.preset_params(preset):
         input_param = [
             input
             for input in input_items
@@ -1336,6 +1345,7 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
         set_input_via_userparam(input_param, inputs, prefix)
 
     set_component_visibility(prefix)
+    apply_preset_finish(prefix, preset_name, use_session=True)
 
 
 def apply_preset_params(cabinet_name: str, preset_name: str):
@@ -1351,20 +1361,67 @@ def apply_preset_params(cabinet_name: str, preset_name: str):
         )
         return
     prefix = f"{cabinet_name}_"
-    for param in preset:
+    for param in presets_store.preset_params(preset):
         set_user_parameter(
             prefix + param["paramName"],
             _preset_expression(param["expression"], prefix),
         )
 
 
-def save_cabinet_as_preset(prefix: str, preset_name: str):
-    """Save a cabinet's current parameter values as a named template.
+def apply_preset_finish(prefix: str, preset_name: str, use_session: bool = True):
+    """Apply a template's saved board finish (decor colours + edge banding) to
+    a cabinet.
 
-    Reads every dialog-managed user parameter of the cabinet and writes the
-    full set into presets.json (existing name = overwrite/edit, new name =
-    add).  The cabinet's own prefix inside an expression is stored as the
-    "{prefix}" placeholder so cross-parameter references stay portable."""
+    use_session=True (default) records the choices in the same in-memory
+    session-override store the dialog's colour/banding pickers use, so it
+    previews live and is committed by persist_finish_overrides() on execute --
+    for templates applied to a cabinet in a document our command dialog is
+    driving.  use_session=False writes attribute overrides directly instead,
+    for the "new cabinet in a brand-new document" path (see
+    request_add_cabinet's J1 branch), which has no command execute cycle of
+    its own to persist session overrides through."""
+    preset = presets_store.get_presets().get(preset_name)
+    boards = presets_store.preset_finish(preset).get("boards")
+    if not boards:
+        return  # legacy/finish-less template -- leave rule-default colours
+
+    holder = None
+    if not use_session:
+        design = adsk.fusion.Design.cast(app.activeProduct)
+        holder = next(
+            (o for o in design.rootComponent.occurrences
+             if o.component.name == prefix.rstrip("_")),
+            None,
+        )
+        if holder is None:
+            return
+
+    for spec, board in boards.items():
+        decor = board.get("decor")
+        if decor:
+            if use_session:
+                _session_decor_overrides[(prefix, spec)] = decor
+            else:
+                set_decor_override(holder, spec, decor)
+        banding = board.get("banding", {})
+        for orient in _ALL_ORIENTATIONS:
+            value = banding.get(orient, "")  # "" = raw, matching the saved template
+            if use_session:
+                _session_banding_overrides[(prefix, spec, orient)] = value
+            else:
+                set_banding_override(holder, spec, orient, value)
+
+
+def save_cabinet_as_preset(prefix: str, preset_name: str):
+    """Save a cabinet's current parameter values and board finish as a named
+    template.
+
+    Reads every dialog-managed user parameter of the cabinet plus its current
+    per-board decor/banding (via effective_decor/effective_banding, so session
+    clicks not yet committed are included) and writes the full set into
+    presets.json (existing name = overwrite/edit, new name = add).  The
+    cabinet's own prefix inside an expression is stored as the "{prefix}"
+    placeholder so cross-parameter references stay portable."""
     design = adsk.fusion.Design.cast(app.activeProduct)
     params = []
     for item in input_items:
@@ -1379,8 +1436,29 @@ def save_cabinet_as_preset(prefix: str, preset_name: str):
                 "expression": user_param.expression.replace(prefix, "{prefix}"),
             }
         )
-    presets_store.save_preset(preset_name, params)
-    futil.log(f"Saved template '{preset_name}' ({len(params)} params) from {prefix}")
+
+    wrapper = next(
+        (o for o in design.rootComponent.occurrences
+         if o.component.name == prefix.rstrip("_")),
+        None,
+    )
+    finish = {}
+    if wrapper is not None:
+        flags = _cabinet_flags(design, prefix)
+        boards = {
+            spec: {
+                "decor": effective_decor(design, prefix, spec, wrapper, flags),
+                "banding": effective_banding(design, prefix, spec, wrapper, flags),
+            }
+            for spec in _board_specs_in_tree(wrapper, prefix)
+        }
+        finish = {"boards": boards}
+
+    presets_store.save_preset(preset_name, params, finish)
+    futil.log(
+        f"Saved template '{preset_name}' ({len(params)} params, "
+        f"{len(finish.get('boards', {}))} boards) from {prefix}"
+    )
 
 
 def refresh_preset_dropdowns(inputs: adsk.core.CommandInputs):
@@ -1441,6 +1519,7 @@ def request_add_cabinet(new_component_name: str, preset_name: Optional[str] = No
             # no dialog is attached to the brand-new document, so apply the
             # template and the resulting visibility/finish directly
             apply_preset_params(new_component_name, preset_name)
+            apply_preset_finish(f"{new_component_name}_", preset_name, use_session=False)
             set_component_visibility(f"{new_component_name}_")
             apply_finish(f"{new_component_name}_")
         return
@@ -1486,6 +1565,7 @@ def materialize_pending_cabinets(pending_cabinets: dict):
                 base_design.add_cabinet(design, name)
                 if preset_name:
                     apply_preset_params(name, preset_name)
+                    apply_preset_finish(f"{name}_", preset_name, use_session=True)
                 futil.log(
                     f"Materialized pending cabinet '{name}' (template: {preset_name})"
                 )
