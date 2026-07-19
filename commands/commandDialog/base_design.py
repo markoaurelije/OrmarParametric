@@ -141,8 +141,13 @@ _LIFT = "( if({p}cokla; {p}cokla_visina; 0 mm) + if({p}nogice; {p}nogice_visina;
 _XI = "if({p}bokovi_preko_donje_ploce; 0 mm; {p}bok_desno_debljina)"
 # inner width between the side panels
 _WIN = "({p}sirina - {p}bok_desno_debljina - {p}bok_lijevo_debljina)"
-# Y of the cabinet front face (front edge of the side panels)
-_FRONT = "({p}bok_desno_dubina - {p}ledja_debljina)"
+# Y of the cabinet front face (front edge of the side panels).  Uses
+# ledja_upust, not ledja_debljina: the side panels' back edge sits at
+# -ledja_upust (see "bok desno"/"bok lijevo" below), so their front edge --
+# and everything referencing _FRONT (cokla, the doors) -- must track upust
+# too, or it drifts out of flush with donja_ploca/gornja_ploca (whose own
+# depth already shrinks by upust) whenever upust != ledja_debljina.
+_FRONT = "({p}bok_desno_dubina - {p}ledja_upust)"
 # Z of the bottom edge of the side panels
 _BOK_Z = "{p}donja_ploca_debljina - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - " + _CK
 # Z of the bottom edge of a (closed) door
@@ -176,7 +181,7 @@ PANELS = [
         "name": "bok desno",
         "plane": "YZ",
         "size": ("{p}bok_desno_debljina", "{p}bok_desno_dubina", "{p}bok_visina"),
-        "pos": (_XI + " - {p}bok_desno_debljina", "-{p}ledja_debljina", _BOK_Z),
+        "pos": (_XI + " - {p}bok_desno_debljina", "-{p}ledja_upust", _BOK_Z),
         # front vertical edge always shows; top edge only when the side is the
         # topmost surface; bottom edge only on wall units (no plinth); back
         # edge faces the wall.
@@ -190,7 +195,7 @@ PANELS = [
         "name": "bok lijevo",
         "plane": "YZ",
         "size": ("{p}bok_lijevo_debljina", "{p}bok_lijevo_dubina", "{p}bok_visina"),
-        "pos": (_XI + " + " + _WIN, "-{p}ledja_debljina", _BOK_Z),
+        "pos": (_XI + " + " + _WIN, "-{p}ledja_upust", _BOK_Z),
         # same rule as "bok desno"
         "banding": {
             "front": True,
