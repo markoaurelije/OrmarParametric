@@ -210,28 +210,55 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                         label.text = folder_dialog.folder
                 return
             elif changed_input.id.endswith("_fronta"):
-                # When the Fronta group checkbox is turned ON, ensure at least
-                # one door direction (left or right) is also enabled so the
-                # user actually sees a door appear.
+                # When the Fronta group checkbox is turned ON, ensure some
+                # opening style is enabled so the user actually sees a door
+                # appear -- but only if none of the four is already on.
                 prefix = changed_input.id[: -len("fronta")]
                 fronta_input = adsk.core.GroupCommandInput.cast(changed_input)
                 if fronta_input and fronta_input.isEnabledCheckBoxChecked:
-                    lijevo = adsk.core.BoolValueCommandInput.cast(
-                        self.inputs.itemById(prefix + "fronta_lijeva")
-                    )
-                    desno = adsk.core.BoolValueCommandInput.cast(
-                        self.inputs.itemById(prefix + "fronta_desna")
-                    )
-                    if (
-                        lijevo is not None
-                        and desno is not None
-                        and not lijevo.value
-                        and not desno.value
-                    ):
-                        desno.value = True
-                        futil.log(
-                            f"Fronta ON: auto-enabled {prefix}fronta_desna"
+                    boxes = {
+                        name: adsk.core.BoolValueCommandInput.cast(
+                            self.inputs.itemById(prefix + "fronta_" + name)
                         )
+                        for name in ("lijeva", "desna", "gore", "dolje")
+                    }
+                    if not any(b is not None and b.value for b in boxes.values()):
+                        if boxes["desna"] is not None:
+                            boxes["desna"].value = True
+                            futil.log(
+                                f"Fronta ON: auto-enabled {prefix}fronta_desna"
+                            )
+            elif changed_input.id.endswith(
+                ("fronta_lijeva", "fronta_desna", "fronta_gore", "fronta_dolje")
+            ):
+                # Exactly one opening style at a time.  The side-hinged pair
+                # (lijeva/desna, which may both be on for a two-door cabinet)
+                # and the flaps are mutually exclusive; and a flap is always a
+                # single full-width panel, so gore and dolje exclude each other
+                # too.  Only act when a box is switched ON -- the clearing
+                # writes below re-enter this handler with value False and stop.
+                box = adsk.core.BoolValueCommandInput.cast(changed_input)
+                if box is not None and box.value:
+                    for suffix, clear in (
+                        ("fronta_gore", ("fronta_dolje", "fronta_lijeva", "fronta_desna")),
+                        ("fronta_dolje", ("fronta_gore", "fronta_lijeva", "fronta_desna")),
+                        ("fronta_lijeva", ("fronta_gore", "fronta_dolje")),
+                        ("fronta_desna", ("fronta_gore", "fronta_dolje")),
+                    ):
+                        if not changed_input.id.endswith(suffix):
+                            continue
+                        prefix = changed_input.id[: -len(suffix)]
+                        for name in clear:
+                            other = adsk.core.BoolValueCommandInput.cast(
+                                self.inputs.itemById(prefix + name)
+                            )
+                            if other is not None and other.value:
+                                other.value = False
+                                futil.log(
+                                    f"Otvaranje '{suffix}' ON: cleared {prefix}{name}"
+                                )
+                        break
+                return
             elif changed_input.id.endswith("_nogice"):
                 # Legs and plinth are mutually exclusive: turning legs ON
                 # switches the plinth (cokla) OFF for this cabinet.

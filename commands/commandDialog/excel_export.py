@@ -72,6 +72,7 @@ _COL_RUB_TRAKA = 7   # G1  RUB. TRAKA DEKOR edge band decor name
 _ROW_ORDER = [
     "donja ploca", "bok desno", "bok lijevo", "ledja", "gornja ploca",
     "pregrada", "polica", "cokla", "fronta desno", "fronta lijevo",
+    "fronta gore", "fronta dolje",
     "ukruta otraga", "podnica", "zadnja", "fronta",
 ]
 

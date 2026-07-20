@@ -104,6 +104,14 @@ USER_PARAMS = [
     ("{p}fronta_lijeva", "0", ""),
     ("{p}fronta_desna", "0", ""),
     ("{p}fronta_desno_sirina", "if({p}fronta_lijeva; {p}sirina / 2; {p}sirina) - if({p}fronta_unutarnje_pokrivanje; if({p}fronta_lijeva; 0 mm; {p}bok_lijevo_debljina) + {p}bok_desno_debljina; 0 mm) - {p}fronta_ofset * if({p}fronta_lijeva; 1.5; 2)", "mm"),
+    # Flap fronts: hinged on a horizontal (X) axis instead of a vertical one --
+    # "gore" lifts up on its top edge, "dolje" drops down on its bottom edge.
+    # Mutually exclusive with the side-hinged fronta_lijeva/fronta_desna pair
+    # (enforced in the dialog), so a flap always spans the whole opening: one
+    # panel, full width, and the same fronta_visina as a side door would have.
+    ("{p}fronta_gore", "0", ""),
+    ("{p}fronta_dolje", "0", ""),
+    ("{p}fronta_klap_sirina", "{p}sirina - if({p}fronta_unutarnje_pokrivanje; {p}bok_desno_debljina + {p}bok_lijevo_debljina; 0 mm) - 2 * {p}fronta_ofset", "mm"),
     ("{p}cokla_visina", "50.0 mm", "mm"),
     ("{p}cokla", "1", ""),
     # cabinet legs (nogice): mutually exclusive with the plinth (cokla).  Four
@@ -156,11 +164,18 @@ _FRONT = "({p}bok_desno_dubina - {p}ledja_upust)"
 _BOK_Z = "{p}donja_ploca_debljina - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - " + _CK
 # Z of the bottom edge of a (closed) door
 _DOOR_Z = "{p}fronta_ofset + if({p}fronta_pokriva_donju_plocu and not({p}fronta_unutarnje_pokrivanje); 0 mm; {p}donja_ploca_debljina)"
+# X/Y of a front that starts at the cabinet's right-hand edge and spans the
+# whole opening -- "fronta desno" when it is the only door, and both flaps.
+_DOOR_X = _XI + " - {p}bok_desno_debljina + {p}fronta_ofset + if({p}fronta_unutarnje_pokrivanje; {p}bok_desno_debljina; 0 mm)"
+_DOOR_Y = _FRONT + " - if({p}fronta_unutarnje_pokrivanje; {p}fronta_debljina; 0 mm)"
 
 # How far a door may swing on its revolute joint (0 deg = closed).  The door is
 # limited to the outward direction only (0..MAX for a +open door, -MAX..0 for a
 # -open one, given by the panel's "open_dir"), so it can't rotate into the box.
 _DOOR_OPEN_MAX_DEG = 110.0
+# A flap (gore/dolje) swings on a horizontal axis and stops at 90 deg: fully
+# up out of the way, or fully down to horizontal like a drop-down desk front.
+_FLAP_OPEN_MAX_DEG = 90.0
 
 # Each panel: component name, sketch plane, box size along root X/Y/Z, and the
 # position of the box's min corner in the parent frame.  plane "XY" extrudes
@@ -276,11 +291,7 @@ PANELS = [
         "name": "fronta desno",
         "plane": "XZ",
         "size": ("{p}fronta_desno_sirina", "{p}fronta_debljina", "{p}fronta_visina"),
-        "pos": (
-            _XI + " - {p}bok_desno_debljina + {p}fronta_ofset + if({p}fronta_unutarnje_pokrivanje; {p}bok_desno_debljina; 0 mm)",
-            _FRONT + " - if({p}fronta_unutarnje_pokrivanje; {p}fronta_debljina; 0 mm)",
-            _DOOR_Z,
-        ),
+        "pos": (_DOOR_X, _DOOR_Y, _DOOR_Z),
         "light_bulb": False,
         # a door: exposed on all four sides.  The door lies in the XZ plane
         # (its big faces point +/-Y), so its four narrow edges are the
@@ -311,6 +322,42 @@ PANELS = [
         # It opens in the -angle direction, limited to -110..0 deg.
         "hinge_offset": "{p}fronta_lijevo_sirina",
         "open_dir": -1,
+    },
+    {
+        "name": "fronta gore",
+        "plane": "XZ",
+        "size": ("{p}fronta_klap_sirina", "{p}fronta_debljina", "{p}fronta_visina"),
+        "pos": (_DOOR_X, _DOOR_Y, _DOOR_Z),
+        "light_bulb": False,
+        # a door: exposed on all four narrow edges (see "fronta desno")
+        "banding": {"left": True, "right": True, "top": True, "bottom": True},
+        # Lift-up flap: rotates about the horizontal X axis, with the pivot
+        # raised in Z by the full door height so it sits on the panel's **top**
+        # edge.  About +X a point below the hinge swings toward +Y, so the free
+        # (bottom) edge lifts out to the front on a positive angle.
+        "hinge_offset": "{p}fronta_visina",
+        "hinge_axis": "X",
+        "hinge_offset_axis": "Z",
+        "open_dir": +1,
+        "open_max_deg": _FLAP_OPEN_MAX_DEG,
+    },
+    {
+        "name": "fronta dolje",
+        "plane": "XZ",
+        "size": ("{p}fronta_klap_sirina", "{p}fronta_debljina", "{p}fronta_visina"),
+        "pos": (_DOOR_X, _DOOR_Y, _DOOR_Z),
+        "light_bulb": False,
+        # a door: exposed on all four narrow edges (see "fronta desno")
+        "banding": {"left": True, "right": True, "top": True, "bottom": True},
+        # Drop-down flap: rotates about the horizontal X axis at its **bottom**
+        # edge, which is the panel's own origin corner -> offset 0.  The panel
+        # stands above the hinge, so it needs the *negative* direction to swing
+        # its free (top) edge out to the front instead of into the box.
+        "hinge_offset": "0 mm",
+        "hinge_axis": "X",
+        "hinge_offset_axis": "Z",
+        "open_dir": -1,
+        "open_max_deg": _FLAP_OPEN_MAX_DEG,
     },
 ]
 
@@ -405,7 +452,8 @@ PLANE_BY_NAME = {s["name"]: s["plane"] for s in _ALL_SPECS}
 # (interior).  Only visible-outside boards are coloured by default -- the doors
 # and the top panel; the user colours anything else per cabinet in the dialog.
 COLORED_DEFAULTS = {name: False for name in BANDING_BY_NAME}
-for _n in ("fronta desno", "fronta lijevo", "fronta", "gornja ploca"):
+for _n in ("fronta desno", "fronta lijevo", "fronta gore", "fronta dolje",
+           "fronta", "gornja ploca"):
     COLORED_DEFAULTS[_n] = True
 COLORED_BY_NAME = dict(COLORED_DEFAULTS)
 
@@ -708,20 +756,37 @@ def _build_leg(parent_comp: adsk.fusion.Component, prefix: str,
 def _position_occurrence(parent_comp: adsk.fusion.Component,
                          occ: adsk.fusion.Occurrence,
                          pos, prefix: str, name: str,
-                         hinge_offset: str = None, open_dir: int = None):
+                         hinge_offset: str = None, open_dir: int = None,
+                         hinge_axis: str = "Z", open_max_deg: float = None,
+                         hinge_offset_axis: str = "X"):
     """Pin an occurrence to an expression-driven point of the parent frame
     via a joint origin + joint.
 
     Normally a rigid joint (part follows the parent frame exactly).  When
-    `hinge_offset` is given (an X-distance expression from the part's origin
-    corner to its hinge edge), a **revolute** joint about the vertical (Z)
-    axis is built instead so a door can swing -- matching the original J1
-    design.  Both joint origins are shifted by the same hinge offset, so the
-    door's closed position is unchanged but the pivot lands on the hinge edge.
+    `hinge_offset` is given -- a distance expression from the part's origin
+    corner to its hinge edge -- a **revolute** joint is built instead so a
+    door can swing.  Both joint origins are shifted by the same hinge offset,
+    so the door's closed position is unchanged but the pivot lands on the
+    hinge edge.
 
-    `open_dir` (+1 / -1) is the outward-opening sign of a hinged door; when
-    given, the revolute joint is limited to 0..110 deg in that direction so
-    the door swings open but never rotates into the cabinet.
+    The rotation axis and the direction the hinge is offset along are two
+    different things and must not be confused:
+
+    * `hinge_axis` is the axis the door *rotates about* -- "Z" for a
+      side-hinged door (swings left/right, matching the original J1 design),
+      "X" for a flap hinged on a horizontal edge (swings up/down).
+    * `hinge_offset_axis` is the direction the pivot is *moved along* to reach
+      the hinge edge -- "X" for a side-hinged door (out to its left/right
+      vertical edge), "Z" for a flap (up to its top edge, or 0 for the
+      bottom one).
+
+    Offsetting along the rotation axis instead just slides the pivot along the
+    hinge line and leaves it on the wrong edge, which sends the door swinging
+    into the cabinet rather than out of it.
+
+    `open_dir` (+1 / -1) is the outward-opening sign; when given, the joint is
+    limited to `open_max_deg` (default 110) in that direction so the door
+    swings open but never rotates into the cabinet.
     """
     if pos is None:
         return  # grounded part, stays at the parent origin
@@ -729,13 +794,19 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     V = adsk.core.ValueInput
 
     hinge = _fmt(hinge_offset, prefix) if hinge_offset is not None else None
-    parent_x = px if hinge is None else "(" + px + ") + (" + hinge + ")"
+    axis = (hinge_axis or "Z").upper()             # axis rotated about
+    off_axis = (hinge_offset_axis or "X").upper()  # axis the pivot moves along
+
+    # the hinge offset shifts both joint origins along the offset axis
+    parent_off = {"X": px, "Y": py, "Z": pz}
+    if hinge is not None:
+        parent_off[off_axis] = "(" + parent_off[off_axis] + ") + (" + hinge + ")"
 
     geo_parent = adsk.fusion.JointGeometry.createByPoint(parent_comp.originConstructionPoint)
     jo_input = parent_comp.jointOrigins.createInput(geo_parent)
-    jo_input.offsetX = V.createByString(parent_x)
-    jo_input.offsetY = V.createByString(py)
-    jo_input.offsetZ = V.createByString(pz)
+    jo_input.offsetX = V.createByString(parent_off["X"])
+    jo_input.offsetY = V.createByString(parent_off["Y"])
+    jo_input.offsetZ = V.createByString(parent_off["Z"])
     jo_parent = parent_comp.jointOrigins.add(jo_input)
     jo_parent.name = "pos " + name
     jo_parent.isLightBulbOn = False
@@ -746,7 +817,13 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     )
     child_input = comp.jointOrigins.createInput(geo_child)
     if hinge is not None:
-        child_input.offsetX = V.createByString(hinge)
+        hinge_value = V.createByString(hinge)
+        if off_axis == "X":
+            child_input.offsetX = hinge_value
+        elif off_axis == "Y":
+            child_input.offsetY = hinge_value
+        else:
+            child_input.offsetZ = hinge_value
     jo_child = comp.jointOrigins.add(child_input)
     jo_child.isLightBulbOn = False
     occ.isGroundToParent = False
@@ -756,15 +833,17 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
     if hinge is None:
         joint_input.setAsRigidJointMotion()
     else:
-        joint_input.setAsRevoluteJointMotion(
-            adsk.fusion.JointDirections.ZAxisJointDirection
-        )
+        joint_input.setAsRevoluteJointMotion({
+            "X": adsk.fusion.JointDirections.XAxisJointDirection,
+            "Y": adsk.fusion.JointDirections.YAxisJointDirection,
+            "Z": adsk.fusion.JointDirections.ZAxisJointDirection,
+        }[axis])
     joint = parent_comp.joints.add(joint_input)
     joint.name = name
     joint.isLightBulbOn = False
 
     if hinge is not None and open_dir:
-        max_rad = math.radians(_DOOR_OPEN_MAX_DEG)
+        max_rad = math.radians(open_max_deg or _DOOR_OPEN_MAX_DEG)
         limits = joint.jointMotion.rotationLimits
         limits.isMinimumValueEnabled = True
         limits.isMaximumValueEnabled = True
@@ -788,7 +867,9 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     for spec in PANELS:
         occ = _build_panel(root, spec, prefix, units)
         _position_occurrence(root, occ, spec["pos"], prefix, spec["name"],
-                             spec.get("hinge_offset"), spec.get("open_dir"))
+                             spec.get("hinge_offset"), spec.get("open_dir"),
+                             spec.get("hinge_axis", "Z"), spec.get("open_max_deg"),
+                             spec.get("hinge_offset_axis", "X"))
         occurrences[spec["name"]] = occ
 
     # --- stiffeners: "ukrute" wrapper with two "ukruta otraga" children ----

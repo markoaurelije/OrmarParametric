@@ -217,6 +217,18 @@ input_items: list[InputItem] = [
         parent="fronta",
     ),
     InputItem(
+        name="fronta_gore",
+        type=InputType.BOOL,
+        description="Otvaranje prema gore (podizna)",
+        parent="fronta",
+    ),
+    InputItem(
+        name="fronta_dolje",
+        type=InputType.BOOL,
+        description="Otvaranje prema dolje (preklopna)",
+        parent="fronta",
+    ),
+    InputItem(
         name="police",
         type=InputType.GROUP_WITH_CHECKBOX,
         description="Police",

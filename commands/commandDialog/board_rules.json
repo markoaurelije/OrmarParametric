@@ -58,6 +58,14 @@
       "colored": true,
       "banding": { "left": true, "right": true, "top": true, "bottom": true }
     },
+    "fronta gore": {
+      "colored": true,
+      "banding": { "left": true, "right": true, "top": true, "bottom": true }
+    },
+    "fronta dolje": {
+      "colored": true,
+      "banding": { "left": true, "right": true, "top": true, "bottom": true }
+    },
     "ukruta otraga": {
       "colored": false,
       "banding": {}

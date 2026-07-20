@@ -603,6 +603,8 @@ def set_component_visibility(prefix):
     fronta_presence = design.userParameters.itemByName(prefix + "fronta")
     lijevo_otvaranje = design.userParameters.itemByName(prefix + "fronta_lijeva")
     desno_otvaranje = design.userParameters.itemByName(prefix + "fronta_desna")
+    gore_otvaranje = design.userParameters.itemByName(prefix + "fronta_gore")
+    dolje_otvaranje = design.userParameters.itemByName(prefix + "fronta_dolje")
     cokla_presence = design.userParameters.itemByName(prefix + "cokla")
     nogice_presence = design.userParameters.itemByName(prefix + "nogice")
     pregrada_presence = design.userParameters.itemByName(prefix + "pregrada")
@@ -613,6 +615,8 @@ def set_component_visibility(prefix):
     ukruteComp = None
     lijevaFrontaComp = None
     desnaFrontaComp = None
+    goreFrontaComp = None
+    doljeFrontaComp = None
     coklaComp = None
     nogiceComp = None
     pregradaComp = None
@@ -656,6 +660,10 @@ def set_component_visibility(prefix):
             lijevaFrontaComp = occurrence
         elif base.startswith("fronta desno"):
             desnaFrontaComp = occurrence
+        elif base.startswith("fronta gore"):
+            goreFrontaComp = occurrence
+        elif base.startswith("fronta dolje"):
+            doljeFrontaComp = occurrence
         elif base.startswith("cokla"):
             coklaComp = occurrence
         elif base.startswith("nogice"):
@@ -678,6 +686,16 @@ def set_component_visibility(prefix):
     if desnaFrontaComp:
         desnaFrontaComp.isLightBulbOn = bool(
             fronta_presence.value and desno_otvaranje.value
+        )
+    # Flap fronts: same gate, and mutually exclusive with the side-hinged pair
+    # (the dialog clears the others when one is picked, see input_changed_handler).
+    if goreFrontaComp and gore_otvaranje:
+        goreFrontaComp.isLightBulbOn = bool(
+            fronta_presence.value and gore_otvaranje.value
+        )
+    if doljeFrontaComp and dolje_otvaranje:
+        doljeFrontaComp.isLightBulbOn = bool(
+            fronta_presence.value and dolje_otvaranje.value
         )
 
     if ukrute_presence and ukruteComp:
