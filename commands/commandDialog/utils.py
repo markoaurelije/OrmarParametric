@@ -885,24 +885,74 @@ def _get_or_create_stripe_appearance(design, name):
     return appr
 
 
-def _bbox_frame(body):
-    """(lo, hi, center, thickness_axis) for a board body in its current context."""
-    bb = body.boundingBox
-    lo = (bb.minPoint.x, bb.minPoint.y, bb.minPoint.z)
-    hi = (bb.maxPoint.x, bb.maxPoint.y, bb.maxPoint.z)
+def cabinet_to_local(occ):
+    """The matrix that maps world coordinates into the frame of the cabinet `occ`
+    belongs to, or None if it is already world-aligned (nothing to correct).
+
+    Orientations ("front", "left", ...) are defined in the *cabinet's* frame, but
+    face centroids and bounding boxes come back in world coordinates.  The two
+    only coincide while the cabinet sits at its default orientation -- rotate one
+    (placing it against a different wall) and every edge is classified as the
+    wrong side, so banding lands on the wrong physical edge.  Everything that
+    classifies a face must first bring the geometry back into this frame."""
+    if occ is None:
+        return None
+    root = occ
+    while root.assemblyContext is not None:   # the cabinet's root-level wrapper
+        root = root.assemblyContext
+    m = root.transform2.copy()
+    if m.isEqualTo(adsk.core.Matrix3D.create()):
+        return None                            # identity: world frame is correct
+    if not m.invert():
+        return None
+    return m
+
+
+def _to_local(pt, to_local):
+    """(x, y, z) of a world point expressed in the cabinet's frame."""
+    if to_local is None:
+        return (pt.x, pt.y, pt.z)
+    p = adsk.core.Point3D.create(pt.x, pt.y, pt.z)
+    p.transformBy(to_local)
+    return (p.x, p.y, p.z)
+
+
+def _bbox_frame(body, to_local=None):
+    """(lo, hi, center, thickness_axis) for a board body, in the cabinet's frame.
+
+    With `to_local` set, the extents are built from the body's *vertices* rather
+    than `body.boundingBox`: a bounding box is axis-aligned in world space, so
+    for a rotated cabinet it is not the board's own box at all (it circumscribes
+    the rotated board and its min/max no longer lie on real faces)."""
+    if to_local is None:
+        bb = body.boundingBox
+        lo = (bb.minPoint.x, bb.minPoint.y, bb.minPoint.z)
+        hi = (bb.maxPoint.x, bb.maxPoint.y, bb.maxPoint.z)
+    else:
+        verts = body.vertices
+        pts = [_to_local(verts.item(i).geometry, to_local) for i in range(verts.count)]
+        if not pts:
+            bb = body.boundingBox
+            lo = _to_local(bb.minPoint, to_local)
+            hi = _to_local(bb.maxPoint, to_local)
+        else:
+            lo = tuple(min(p[i] for p in pts) for i in range(3))
+            hi = tuple(max(p[i] for p in pts) for i in range(3))
     center = tuple((hi[i] + lo[i]) / 2.0 for i in range(3))
     thickness_axis = min(range(3), key=lambda i: hi[i] - lo[i])
     return lo, hi, center, thickness_axis
 
 
-def _classify_face(frame, face):
+def _classify_face(frame, face, to_local=None):
     """Classify a planar face of a board box as ('big', None) for a broad face,
     ('edge', orientation) for one of the four narrow outer edges, or
     (None, None) for a recessed/interior face (groove/slot).  Same geometry used
-    by _paint_board and by the edge-banding picker so they always agree."""
+    by _paint_board and by the edge-banding picker so they always agree.
+
+    `to_local` (see cabinet_to_local) must be the same one `frame` was built
+    with, so the face and the box are compared in one consistent frame."""
     lo, hi, center, thickness_axis = frame
-    c = face.centroid
-    cc = (c.x, c.y, c.z)
+    cc = _to_local(face.centroid, to_local)
     d = tuple(cc[i] - center[i] for i in range(3))
     axis = max(range(3), key=lambda i: abs(d[i]))
     sign = 1 if d[axis] > 0 else -1
@@ -914,18 +964,19 @@ def _classify_face(frame, face):
     return ("edge", _ORIENTATION_AXIS[(axis, sign)])
 
 
-def _paint_board(body, appr_face, band_appr_by_orient, appr_stripe):
+def _paint_board(body, appr_face, band_appr_by_orient, appr_stripe, to_local=None):
     """Paint one board body: big faces get the board's decor appearance; each
     narrow edge gets its band-colour appearance (from band_appr_by_orient) if
     banded, else the striped texture.  Robust to grooves/splits -- only faces on
-    the bounding box's outer plane count; recessed interior faces are left alone."""
-    frame = _bbox_frame(body)
+    the bounding box's outer plane count; recessed interior faces are left alone.
+    `to_local` maps world -> the cabinet's frame (see cabinet_to_local)."""
+    frame = _bbox_frame(body, to_local)
 
     for face in body.faces:
         try:
             if not isinstance(face.geometry, adsk.core.Plane):
                 continue
-            kind, orient = _classify_face(frame, face)
+            kind, orient = _classify_face(frame, face, to_local)
             if kind is None:
                 continue  # recessed face (groove/slot interior)
             if kind == "big":
@@ -1083,6 +1134,11 @@ def apply_finish(prefix):
     face_appr_cache = {}   # spec -> board's face appearance
     band_appr_cache = {}   # spec -> {orient: band appearance}
 
+    # Edge orientations are defined in the cabinet's own frame; a rotated
+    # cabinet must have its geometry brought back into that frame first, or
+    # every edge is classified as the wrong side.
+    to_local = cabinet_to_local(wrapper)
+
     # Walk from the root-level occurrence via childOccurrences: a nested
     # component's `allOccurrences` gives proxies missing the root->wrapper step,
     # and BRepFace.appearance then raises InternalValidationError.
@@ -1101,7 +1157,9 @@ def apply_finish(prefix):
             appr_face = face_appr_cache[spec]
             if appr_face is not None:
                 for body in occ.bRepBodies:
-                    _paint_board(body, appr_face, band_appr_cache[spec], appr_stripe)
+                    _paint_board(
+                        body, appr_face, band_appr_cache[spec], appr_stripe, to_local
+                    )
         for child in occ.childOccurrences:
             _paint_tree(child)
 
@@ -1179,7 +1237,8 @@ def set_edge_band(entity, decor_name):
     if ctx is None:
         return None
     spec, prefix, holder, flags = ctx
-    kind, orient = _classify_face(_bbox_frame(body), entity)
+    to_local = cabinet_to_local(occ)
+    kind, orient = _classify_face(_bbox_frame(body, to_local), entity, to_local)
     if kind != "edge" or orient is None:
         return None  # a broad face or a recessed face -- not a bandable edge
     design = adsk.fusion.Design.cast(app.activeProduct)
