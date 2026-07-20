@@ -849,6 +849,12 @@ def _get_or_create_solid_appearance(design, name, rgb):
         if isinstance(prop, adsk.core.ColorProperty):
             prop.value = adsk.core.Color.create(rgb[0], rgb[1], rgb[2], 255)
             break
+    # Some library appearances (or the item(0) fallback above) carry
+    # Translucency on, which makes boards render see-through in the
+    # viewport - boards must always be opaque regardless of the source.
+    translucency = appr.appearanceProperties.itemByName("Translucency")
+    if translucency and isinstance(translucency, adsk.core.BooleanProperty):
+        translucency.value = False
     return appr
 
 
