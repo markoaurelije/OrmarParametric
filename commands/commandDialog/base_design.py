@@ -113,7 +113,11 @@ USER_PARAMS = [
     ("{p}nogice_visina", "100.0 mm", "mm"),
     ("{p}nogice_promjer", "40.0 mm", "mm"),
     ("{p}nogice_odmak", "35.0 mm", "mm"),
-    ("{p}pregrada_visina", "{p}bok_visina - if({p}cokla; {p}cokla_visina; 0 mm) - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - -if({p}bokovi_preko_gornje_ploce; {p}gornja_debljina; 0 mm)", "mm"),
+    # Clear interior height: the divider stands on the bottom panel and stops
+    # under the top panel.  The last term must be *subtracted* -- when the sides
+    # run past the top panel, bok_visina still spans the full height, so the top
+    # panel's thickness sits inside that span and the divider has to lose it.
+    ("{p}pregrada_visina", "{p}bok_visina - if({p}cokla; {p}cokla_visina; 0 mm) - if({p}bokovi_preko_donje_ploce; {p}donja_ploca_debljina; 0 mm) - if({p}bokovi_preko_gornje_ploce; {p}gornja_debljina; 0 mm)", "mm"),
     ("{p}pregrada", "0", ""),
     ("{p}police", "0", ""),
     ("{p}ultrabox_width", "{p}sirina - {p}bok_desno_debljina - {p}bok_lijevo_debljina - 31 mm", "mm"),
