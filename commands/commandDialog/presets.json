@@ -1108,5 +1108,506 @@
         }
       }
     }
+  },
+  "Ormar - dupla vrata": {
+    "params": [
+      {
+        "paramName": "sirina",
+        "expression": "91 cm"
+      },
+      {
+        "paramName": "dubina",
+        "expression": "60.0 cm"
+      },
+      {
+        "paramName": "visina",
+        "expression": "90.0 cm"
+      },
+      {
+        "paramName": "donja_ploca_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "bokovi_preko_donje_ploce",
+        "expression": "1"
+      },
+      {
+        "paramName": "bokovi_preko_gornje_ploce",
+        "expression": "0"
+      },
+      {
+        "paramName": "pregrada",
+        "expression": "1"
+      },
+      {
+        "paramName": "bok_lijevo_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "bok_desno_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "gornja_ploca",
+        "expression": "1"
+      },
+      {
+        "paramName": "gornja_ploca_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "gornja_napust",
+        "expression": "5.0 mm"
+      },
+      {
+        "paramName": "ukrute",
+        "expression": "1"
+      },
+      {
+        "paramName": "ukruta_sirina",
+        "expression": "80.0 mm"
+      },
+      {
+        "paramName": "ledja_debljina",
+        "expression": "3.0 mm"
+      },
+      {
+        "paramName": "ledja_ofset",
+        "expression": "1.0 mm"
+      },
+      {
+        "paramName": "ledja_upust",
+        "expression": "0 mm"
+      },
+      {
+        "paramName": "ledja_dubina_slota_u_bokovima",
+        "expression": "0 mm"
+      },
+      {
+        "paramName": "fronta",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_pokriva_donju_plocu",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_pokriva_gornju_plocu",
+        "expression": "0"
+      },
+      {
+        "paramName": "fronta_unutarnje_pokrivanje",
+        "expression": "0"
+      },
+      {
+        "paramName": "fronta_ofset",
+        "expression": "2.0 mm"
+      },
+      {
+        "paramName": "fronta_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "fronta_lijeva",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_desna",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_gore",
+        "expression": "0"
+      },
+      {
+        "paramName": "fronta_dolje",
+        "expression": "0"
+      },
+      {
+        "paramName": "police",
+        "expression": "1"
+      },
+      {
+        "paramName": "polica_upust",
+        "expression": "20.0 mm"
+      },
+      {
+        "paramName": "polica_suzenje",
+        "expression": "1.0 mm"
+      },
+      {
+        "paramName": "broj_polica",
+        "expression": "2"
+      },
+      {
+        "paramName": "cokla",
+        "expression": "1"
+      },
+      {
+        "paramName": "cokla_visina",
+        "expression": "60.0 mm"
+      },
+      {
+        "paramName": "nogice",
+        "expression": "0"
+      },
+      {
+        "paramName": "nogice_visina",
+        "expression": "100.0 mm"
+      },
+      {
+        "paramName": "nogice_promjer",
+        "expression": "40.0 mm"
+      },
+      {
+        "paramName": "nogice_odmak",
+        "expression": "35.0 mm"
+      }
+    ],
+    "finish": {
+      "boards": {
+        "fronta lijevo": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "fronta": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "polica": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela"
+          }
+        },
+        "bok lijevo": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela",
+            "bottom": "Bijela"
+          }
+        },
+        "ledja": {
+          "decor": "Bijela",
+          "banding": {}
+        },
+        "fronta desno": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "cokla": {
+          "decor": "Bijela",
+          "banding": {
+            "bottom": "Bijela"
+          }
+        },
+        "gornja ploca": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela",
+            "right": "Bijela",
+            "left": "Bijela",
+            "front": "Bijela"
+          }
+        },
+        "ukruta otraga": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela",
+            "back": "Bijela"
+          }
+        },
+        "pregrada": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela"
+          }
+        },
+        "bok desno": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela",
+            "bottom": "Bijela"
+          }
+        },
+        "donja ploca": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela"
+          }
+        },
+        "zadnja": {
+          "decor": "Bijela",
+          "banding": {}
+        },
+        "podnica": {
+          "decor": "Bijela",
+          "banding": {}
+        }
+      }
+    }
+  },
+  "Ormar gornji - dupla vrata": {
+    "params": [
+      {
+        "paramName": "sirina",
+        "expression": "2 * 45.50 cm"
+      },
+      {
+        "paramName": "dubina",
+        "expression": "60.0 cm"
+      },
+      {
+        "paramName": "visina",
+        "expression": "70 cm"
+      },
+      {
+        "paramName": "donja_ploca_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "bokovi_preko_donje_ploce",
+        "expression": "1"
+      },
+      {
+        "paramName": "bokovi_preko_gornje_ploce",
+        "expression": "1"
+      },
+      {
+        "paramName": "pregrada",
+        "expression": "1"
+      },
+      {
+        "paramName": "bok_lijevo_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "bok_desno_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "gornja_ploca",
+        "expression": "1"
+      },
+      {
+        "paramName": "gornja_ploca_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "gornja_napust",
+        "expression": "0.0 mm"
+      },
+      {
+        "paramName": "ukrute",
+        "expression": "0"
+      },
+      {
+        "paramName": "ukruta_sirina",
+        "expression": "80.0 mm"
+      },
+      {
+        "paramName": "ledja_debljina",
+        "expression": "3.0 mm"
+      },
+      {
+        "paramName": "ledja_ofset",
+        "expression": "1.0 mm"
+      },
+      {
+        "paramName": "ledja_upust",
+        "expression": "0 mm"
+      },
+      {
+        "paramName": "ledja_dubina_slota_u_bokovima",
+        "expression": "0 mm"
+      },
+      {
+        "paramName": "fronta",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_pokriva_donju_plocu",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_pokriva_gornju_plocu",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_unutarnje_pokrivanje",
+        "expression": "0"
+      },
+      {
+        "paramName": "fronta_ofset",
+        "expression": "2.0 mm"
+      },
+      {
+        "paramName": "fronta_debljina",
+        "expression": "18.0 mm"
+      },
+      {
+        "paramName": "fronta_lijeva",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_desna",
+        "expression": "1"
+      },
+      {
+        "paramName": "fronta_gore",
+        "expression": "0"
+      },
+      {
+        "paramName": "fronta_dolje",
+        "expression": "0"
+      },
+      {
+        "paramName": "police",
+        "expression": "1"
+      },
+      {
+        "paramName": "polica_upust",
+        "expression": "20.0 mm"
+      },
+      {
+        "paramName": "polica_suzenje",
+        "expression": "1.0 mm"
+      },
+      {
+        "paramName": "broj_polica",
+        "expression": "2"
+      },
+      {
+        "paramName": "cokla",
+        "expression": "0"
+      },
+      {
+        "paramName": "cokla_visina",
+        "expression": "60.0 mm"
+      },
+      {
+        "paramName": "nogice",
+        "expression": "0"
+      },
+      {
+        "paramName": "nogice_visina",
+        "expression": "100.0 mm"
+      },
+      {
+        "paramName": "nogice_promjer",
+        "expression": "40.0 mm"
+      },
+      {
+        "paramName": "nogice_odmak",
+        "expression": "35.0 mm"
+      }
+    ],
+    "finish": {
+      "boards": {
+        "fronta lijevo": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "fronta": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "polica": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela"
+          }
+        },
+        "bok lijevo": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela"
+          }
+        },
+        "ledja": {
+          "decor": "Bijela",
+          "banding": {}
+        },
+        "fronta desno": {
+          "decor": "Hrast",
+          "banding": {
+            "right": "Hrast",
+            "bottom": "Hrast",
+            "top": "Hrast",
+            "left": "Hrast"
+          }
+        },
+        "cokla": {
+          "decor": "Bijela",
+          "banding": {}
+        },
+        "gornja ploca": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela",
+            "left": "Bijela",
+            "right": "Bijela"
+          }
+        },
+        "ukruta otraga": {
+          "decor": "Bijela",
+          "banding": {
+            "front": "Bijela",
+            "back": "Bijela"
+          }
+        },
+        "pregrada": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela"
+          }
+        },
+        "bok desno": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela"
+          }
+        },
+        "donja ploca": {
+          "decor": "Bijela",
+          "banding": {
+            "back": "Bijela"
+          }
+        },
+        "zadnja": {
+          "decor": "Bijela",
+          "banding": {}
+        },
+        "podnica": {
+          "decor": "Bijela",
+          "banding": {}
+        }
+      }
+    }
   }
 }
