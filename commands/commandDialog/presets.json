@@ -480,7 +480,7 @@
       },
       {
         "paramName": "fronta",
-        "expression": "1"
+        "expression": "0"
       },
       {
         "paramName": "fronta_pokriva_donju_plocu",
