@@ -4,6 +4,7 @@ import adsk.core
 
 from ...commandDialog.ultrabox import add_ultrabox, remove_ultrabox
 from ...commandDialog import excel_export
+from ...commandDialog import iverpan_export
 from ....lib import fusionAddInUtils as futil
 
 from ..utils import (
@@ -164,13 +165,49 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                         )
                     )
                 else:
-                    if output_paths:
+                    if output_paths is None:
+                        ui.messageBox("Nema ormara za izvoz u ovom dizajnu.")
+                    else:
                         paths_text = "\n".join(output_paths)
                         ui.messageBox(f"Krojna lista spremljena:\n{paths_text}")
+                return
+            elif changed_input.id == "exportIverpanButton":
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                try:
+                    output_path = iverpan_export.export_cut_list()
+                except Exception:
+                    ui.messageBox(
+                        "Izvoz krojne liste za Iverpan nije uspio:\n{}".format(
+                            traceback.format_exc()
+                        )
+                    )
+                else:
+                    if output_path is None:
+                        ui.messageBox("Nema ormara za izvoz u ovom dizajnu.")
                     else:
                         ui.messageBox(
-                            "Nema ormara za izvoz u ovom dizajnu."
+                            "Krojna lista za Iverpan spremljena:\n{}\n\n"
+                            "Šifre materijala i rubnih traka su naši nazivi "
+                            "dekora -- zamijeni ih pravim Iverpan šiframa "
+                            "prije slanja narudžbe.".format(output_path)
                         )
+                return
+            elif changed_input.id == "chooseExportFolderButton":
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                folder_dialog = ui.createFolderDialog()
+                folder_dialog.title = "Odaberi mapu za izvoz krojne liste"
+                current = excel_export.get_export_folder()
+                if current:
+                    folder_dialog.initialDirectory = current
+                if folder_dialog.showDialog() == adsk.core.DialogResults.DialogOK:
+                    excel_export.set_export_folder(folder_dialog.folder)
+                    label = adsk.core.TextBoxCommandInput.cast(
+                        self.inputs.itemById("exportFolderLabel")
+                    )
+                    if label:
+                        label.text = folder_dialog.folder
                 return
             elif changed_input.id.endswith("_fronta"):
                 # When the Fronta group checkbox is turned ON, ensure at least

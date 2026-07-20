@@ -5,6 +5,7 @@ import adsk.core, adsk.fusion, adsk.cam, traceback
 from ..commandDialog.dialog_config import InputItem, input_items, InputType
 from ..commandDialog import presets as presets_store
 from ..commandDialog import base_design
+from ..commandDialog import excel_export
 from ...lib import fusionAddInUtils as futil
 
 app = adsk.core.Application.get()
@@ -326,12 +327,39 @@ def _create_project_tab(inputs: adsk.core.CommandInputs):
     # -- Izvoz: cut-list export ---------------------------------------------
     izvoz = tab.addGroupCommandInput("projekt_izvoz", "Izvoz")
     izvoz.isExpanded = True
+
+    folder_label = izvoz.children.addTextBoxCommandInput(
+        "exportFolderLabel", "Mapa za izvoz",
+        excel_export.get_export_folder() or "(zadano: Desktop)", 1, True
+    )
+    folder_label.tooltip = (
+        "Mapa u koju se spremaju izvezene krojne liste. Ako nije odabrana, "
+        "koristi se Desktop."
+    )
+    choose_folder_btn = izvoz.children.addBoolValueInput(
+        "chooseExportFolderButton", "Odaberi mapu za izvoz", False, "", True
+    )
+    choose_folder_btn.tooltip = (
+        "Odaberi mapu u koju će se spremati sve buduće krojne liste "
+        "(pamti se za sljedeći put)."
+    )
+
     export_btn = izvoz.children.addBoolValueInput(
         "exportCutListButton", "Izvezi krojnu listu u Excel", False, "", True
     )
     export_btn.tooltip = (
-        "Spremi krojnu listu svih ormara u kopiju narudžbenice (.xlsm) na "
-        "Desktop. Predložak narudzba-excel.xlsm se ne mijenja."
+        "Spremi krojnu listu svih ormara u kopiju narudžbenice (.xlsm) u "
+        "odabranu mapu za izvoz (ili na Desktop ako nije odabrana). Predložak "
+        "narudzba-excel.xlsm se ne mijenja."
+    )
+    export_iverpan_btn = izvoz.children.addBoolValueInput(
+        "exportIverpanButton", "Izvezi krojnu listu za Iverpan", False, "", True
+    )
+    export_iverpan_btn.tooltip = (
+        "Spremi krojnu listu svih ormara u kopiju Iverpan narudžbenice (.xlsx) "
+        "u odabranu mapu za izvoz (ili na Desktop ako nije odabrana). Šifre "
+        "materijala/rubnih traka su naši nazivi dekora -- zamijeni ih pravim "
+        "Iverpan šiframa prije slanja narudžbe. Predložak se ne mijenja."
     )
 
 

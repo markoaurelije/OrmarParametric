@@ -560,6 +560,28 @@ def banding_counts_for_orientations(comp_name: str, orientations, dims):
     return _reduce_banding_counts(PLANE_BY_NAME[name], set(orientations), dims)
 
 
+def banding_decors_for_orientations(comp_name: str, banded: dict, dims):
+    """Like ``banding_counts_for_orientations`` but keeps *which* decor bands
+    each edge instead of collapsing to a count: returns
+    ``(long_decors, short_decors)``, each a list of 0-2 decor names (one per
+    banded edge in that pair) -- so a board banded in two different colours on
+    its two long edges is represented, not just counted.  ``banded`` is an
+    orientation -> decor name map (e.g. from ``utils.effective_banding``)."""
+    name = spec_name_for_component(comp_name)
+    if name is None:
+        return ([], [])
+    plane = PLANE_BY_NAME[name]
+    per_axis = {}
+    for orientation, decor in banded.items():
+        idx = _EDGE_DIM[plane].get(orientation)
+        if idx is None:
+            continue
+        per_axis.setdefault(idx, []).append(decor)
+    a, b = _INPLANE[plane]
+    long_idx, short_idx = (a, b) if dims[a] >= dims[b] else (b, a)
+    return (per_axis.get(long_idx, []), per_axis.get(short_idx, []))
+
+
 def board_banding_counts(comp_name: str, flags: dict, dims):
     """Reduce a board's rule-default banding to the ``(long_count, short_count)``
     the cut list needs.  ``dims`` is the board's evaluated (dx, dy, dz) size in

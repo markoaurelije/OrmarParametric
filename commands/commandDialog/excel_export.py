@@ -347,17 +347,107 @@ def _safe_name(name):
     return re.sub(r'[\\/:*?"<>|]+', "_", name).strip()
 
 
+# ---------------------------------------------------------------------------
+# Export folder preference.  Stored in a small JSON file in the user's home
+# directory (not in the repo -- this is a per-machine preference, not project
+# config) so a chosen export location survives across Fusion sessions and
+# different designs; shared with iverpan_export.py since both exports save to
+# the same user-chosen folder.
+# ---------------------------------------------------------------------------
+_PREFS_PATH = os.path.join(os.path.expanduser("~"), ".ormarparametric", "export_prefs.json")
+
+
+def _load_prefs():
+    import json
+    try:
+        with open(_PREFS_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_prefs(prefs):
+    import json
+    os.makedirs(os.path.dirname(_PREFS_PATH), exist_ok=True)
+    with open(_PREFS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(prefs, fh, indent=2)
+
+
+def get_export_folder():
+    """The user's saved cut-list export folder, or ``None`` if never set or no
+    longer present on disk (e.g. a removed external drive) -- callers fall
+    back to Desktop/home in that case."""
+    folder = _load_prefs().get("export_folder")
+    return folder if folder and os.path.isdir(folder) else None
+
+
+def set_export_folder(folder):
+    """Save `folder` as the export location for future exports."""
+    prefs = _load_prefs()
+    prefs["export_folder"] = folder
+    _save_prefs(prefs)
+
+
+def _default_export_folder():
+    """The user's saved export folder if set, else the Desktop (or home if
+    there's no Desktop directory)."""
+    folder = get_export_folder()
+    if folder is not None:
+        return folder
+    home = os.path.expanduser("~")
+    desktop = os.path.join(home, "Desktop")
+    return desktop if os.path.isdir(desktop) else home
+
+
+def unique_path(path):
+    """If `path` already exists, append an auto-incrementing ' (N)' suffix
+    before the extension until a free name is found."""
+    if not os.path.exists(path):
+        return path
+    root, ext = os.path.splitext(path)
+    n = 1
+    while True:
+        candidate = f"{root} ({n}){ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        n += 1
+
+
+def resolve_output_paths(paths):
+    """Decide the final path for each of `paths`, asking the user once if any
+    of them already exist: "Yes" overwrites the colliding names as-is, "No"
+    (or closing the dialog) auto-suffixes just the colliding ones via
+    `unique_path` so nothing already on disk is lost.  Non-colliding paths are
+    always returned unchanged.  Shared with iverpan_export.py since both write
+    straight to a fixed folder with no save dialog of their own."""
+    existing = [p for p in paths if os.path.exists(p)]
+    if not existing:
+        return list(paths)
+    app = adsk.core.Application.get()
+    ui = app.userInterface
+    names = "\n".join(os.path.basename(p) for p in existing)
+    result = ui.messageBox(
+        f"Sljedeće datoteke već postoje:\n{names}\n\n"
+        "Prepisati ih? (Ne = spremi pod novim imenom)",
+        "Datoteka već postoji",
+        adsk.core.MessageBoxButtonTypes.YesNoButtonType,
+        adsk.core.MessageBoxIconTypes.QuestionIconType,
+    )
+    if result == adsk.core.DialogResults.DialogYes:
+        return list(paths)
+    return [unique_path(p) if p in existing else p for p in paths]
+
+
 def _default_output_path(design, decor, thickness_mm):
-    """A discoverable place to drop the exported copy: the Desktop if it exists,
-    otherwise the home directory.  The decor name and thickness are prepended so
-    the per-(decor, thickness) workbooks for one design don't collide, and are
-    identifiable to the woodshop at a glance."""
+    """Where to drop the exported copy: the user's saved export folder (see
+    `get_export_folder`), else the Desktop, else the home directory.  The decor
+    name and thickness are prepended so the per-(decor, thickness) workbooks
+    for one design don't collide, and are identifiable to the woodshop at a
+    glance."""
     app = adsk.core.Application.get()
     doc_name = _safe_name(app.activeDocument.name or "ormar") or "ormar"
     decor_name = _safe_name(decor) or "decor"
-    home = os.path.expanduser("~")
-    desktop = os.path.join(home, "Desktop")
-    folder = desktop if os.path.isdir(desktop) else home
+    folder = _default_export_folder()
     return os.path.join(folder, f"{decor_name}-{thickness_mm}mm-{doc_name}-krojna-lista.xlsm")
 
 
@@ -404,8 +494,10 @@ def export_cut_list():
     physically distinct sheet good the woodshop orders separately.
 
     Returns the list of output paths on success, or ``None`` if the design has
-    no cabinets (nothing to export).  Raises on I/O / openpyxl errors so the
-    caller can surface them.
+    no cabinets (nothing to export).  If a target filename already exists, the
+    user is asked once (via `resolve_output_paths`) whether to overwrite it or
+    save the colliding file(s) under a new ``' (N)'``-suffixed name.  Raises on
+    I/O / openpyxl errors so the caller can surface them.
     """
     app = adsk.core.Application.get()
     design = adsk.fusion.Design.cast(app.activeProduct)
@@ -417,11 +509,29 @@ def export_cut_list():
         return None
 
     template_path = _template_path()
+    keys = sorted(buckets)
+    planned_paths = resolve_output_paths(
+        [_default_output_path(design, decor, thickness_mm) for decor, thickness_mm in keys]
+    )
+
     output_paths = []
-    for (decor, thickness_mm) in sorted(buckets):
+    for (decor, thickness_mm), output_path in zip(keys, planned_paths):
         rows = buckets[(decor, thickness_mm)]
-        output_path = _default_output_path(design, decor, thickness_mm)
         _write_to_excel(rows, template_path, output_path, decor)
         futil.log(f"Cut list exported: {len(rows)} rows -> {output_path}")
         output_paths.append(output_path)
     return output_paths
+
+
+# ---------------------------------------------------------------------------
+# Shared with iverpan_export.py: board discovery and geometry measurement are
+# supplier-agnostic, so the Iverpan (single-sheet, one-row-per-piece) export
+# reuses these rather than re-walking the occurrence tree a second way.
+# ---------------------------------------------------------------------------
+get_prefixes = _get_prefixes
+cabinet_flags = _cabinet_flags
+collect_boards = _collect_boards
+board_geometry_dims = _board_geometry_dims
+thickness_mm = _thickness_mm
+row_order = _ROW_ORDER
+napomena_by_spec = _NAPOMENA
