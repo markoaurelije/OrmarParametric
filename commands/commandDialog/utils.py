@@ -446,6 +446,31 @@ def get_prefixes():
     return prefixis
 
 
+def materialize_enabled_parts(prefix: str):
+    """Bring lazily-built parts (the doors and the legs) into being once their
+    flag is switched on -- see base_design.LAZY_PARTS for why only those are
+    deferred.  Idempotent, so it runs every preview/execute cycle; must run
+    *after* the parameters are pushed (so the flags are current) and before
+    visibility, which then treats the new part like any other."""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    if design is None:
+        return
+    wrapper = next(
+        (o for o in design.rootComponent.occurrences
+         if o.component.name == prefix.rstrip("_")),
+        None,
+    )
+    try:
+        built = base_design.materialize_enabled_parts(design, prefix, wrapper)
+        if built:
+            futil.log(f"Materialized {prefix} parts: {built}")
+    except Exception as e:
+        futil.log(
+            f"materialize_enabled_parts({prefix}) failed: {e}",
+            adsk.core.LogLevels.WarningLogLevel,
+        )
+
+
 def reseat_free_wrappers(prefix: str):
     """Self-healing pass, run every preview/execute cycle per cabinet.
 

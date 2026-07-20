@@ -4,6 +4,7 @@ from ....lib import fusionAddInUtils as futil
 from ..utils import (
     collect_delete_requests,
     reseat_free_wrappers,
+    materialize_enabled_parts,
     get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
@@ -55,6 +56,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         for prefix in prefixis:
             reseat_free_wrappers(prefix)
             set_user_parameters_via_inputs(args.command.commandInputs, prefix)
+            materialize_enabled_parts(prefix)
             set_component_visibility(prefix)
             apply_finish(prefix)
 

@@ -851,6 +851,99 @@ def _position_occurrence(parent_comp: adsk.fusion.Component,
         limits.maximumValue = max_rad if open_dir > 0 else 0.0
 
 
+# ---------------------------------------------------------------------------
+# Lazily-built parts.  Everything else is built with the cabinet because other
+# features depend on the body existing: `ledja` is the tool for the side-panel
+# grooves, `pregrada` the tool for the "split police"/"split ukrute" combines,
+# `polica` the seed of the broj_polica pattern, and `Ultrabox` the template
+# perform_add_ultrabox copies.  The parts below have no such dependents, so a
+# cabinet only carries them once the user actually switches them on -- which
+# keeps a plain cabinet ~9 occurrences lighter (4 doors + the nogice wrapper
+# and its 4 legs).  Values are conditions on the cabinet's flag parameters,
+# evaluated the same way board_rules.json conditions are.
+#
+# Turning a flag back OFF leaves the part in place (just hidden), matching how
+# every other part behaves -- so a cabinet never ends up heavier than it would
+# have been before, and nothing has to be deleted.
+# ---------------------------------------------------------------------------
+LAZY_PARTS = {
+    "fronta desno": "fronta and fronta_desna",
+    "fronta lijevo": "fronta and fronta_lijeva",
+    "fronta gore": "fronta and fronta_gore",
+    "fronta dolje": "fronta and fronta_dolje",
+    "nogice": "nogice",
+}
+
+
+def _cabinet_flag_values(design: adsk.fusion.Design, prefix: str) -> dict:
+    """The cabinet's parameter values keyed by base name (prefix stripped)."""
+    return {p.name[len(prefix):]: p.value
+            for p in design.userParameters if p.name.startswith(prefix)}
+
+
+def _lazy_enabled(name: str, flags: dict) -> bool:
+    """Whether a lazily-built part's flag condition currently holds."""
+    cond = LAZY_PARTS.get(name)
+    return True if cond is None else _eval_banding_condition(cond, flags)
+
+
+def _build_nogice(root: adsk.fusion.Component, prefix: str, units):
+    """The "nogice" wrapper holding four corner legs.
+
+    Each leg is its OWN component (not one component instanced four times):
+    a shared component's joint origins appear as a separate proxy in every
+    instance, and the native isLightBulbOn=False set in _position_occurrence
+    only hides the native copy -- the other instances' proxies stay visible.
+    Giving each leg its own component keeps every joint origin native (hidden),
+    just like the panels.
+    """
+    nogice_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    # ground the joint-less wrapper, same reason as the ukrute wrapper
+    nogice_occ.isGroundToParent = True
+    nogice_comp = nogice_occ.component
+    nogice_comp.name = scoped_name(prefix, "nogice")
+    for i, pos in enumerate(LEG_POSITIONS):
+        leg_occ = _build_leg(nogice_comp, prefix, units)
+        _position_occurrence(nogice_comp, leg_occ, pos, prefix, f"noga {i + 1}")
+    nogice_occ.isLightBulbOn = False
+    return nogice_occ
+
+
+def materialize_enabled_parts(design: adsk.fusion.Design, prefix: str,
+                              parent_occurrence: adsk.fusion.Occurrence = None):
+    """Build any lazily-created part whose flag is now on but whose component
+    does not exist yet, so switching a door or the legs on in the dialog
+    brings the real geometry into being.  Idempotent -- an existing part is
+    left alone -- so it is safe to run every preview/execute cycle.
+
+    Returns the list of part names built (empty when there was nothing to do).
+    """
+    root = parent_occurrence.component if parent_occurrence else design.rootComponent
+    units = design.fusionUnitsManager
+    flags = _cabinet_flag_values(design, prefix)
+    existing = {o.component.name for o in root.occurrences}
+    built = []
+
+    for spec in PANELS:
+        name = spec["name"]
+        if name not in LAZY_PARTS or scoped_name(prefix, name) in existing:
+            continue
+        if not _lazy_enabled(name, flags):
+            continue
+        occ = _build_panel(root, spec, prefix, units)
+        _position_occurrence(root, occ, spec["pos"], prefix, name,
+                             spec.get("hinge_offset"), spec.get("open_dir"),
+                             spec.get("hinge_axis", "Z"), spec.get("open_max_deg"),
+                             spec.get("hinge_offset_axis", "X"))
+        built.append(name)
+
+    if (scoped_name(prefix, "nogice") not in existing
+            and _lazy_enabled("nogice", flags)):
+        _build_nogice(root, prefix, units)
+        built.append("nogice")
+    return built
+
+
 def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
                    parent_occurrence: adsk.fusion.Occurrence = None):
     """Build the complete cabinet into the component of `parent_occurrence`
@@ -864,7 +957,12 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     create_user_parameters(design, prefix)
 
     occurrences = {}
+    flags = _cabinet_flag_values(design, prefix)
     for spec in PANELS:
+        # lazily-built parts are skipped until their flag is switched on;
+        # materialize_enabled_parts brings them in later (see LAZY_PARTS)
+        if not _lazy_enabled(spec["name"], flags):
+            continue
         occ = _build_panel(root, spec, prefix, units)
         _position_occurrence(root, occ, spec["pos"], prefix, spec["name"],
                              spec.get("hinge_offset"), spec.get("open_dir"),
@@ -976,20 +1074,13 @@ def create_cabinet(design: adsk.fusion.Design, prefix: str = "J1_",
     # only hides the native copy -- the other instances' proxies stay visible.
     # Giving each leg its own component keeps every joint origin native (hidden),
     # just like the panels.  Off by default (the plinth is on).
-    nogice_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    # ground the joint-less wrapper, same reason as the ukrute wrapper above
-    nogice_occ.isGroundToParent = True
-    nogice_comp = nogice_occ.component
-    nogice_comp.name = scoped_name(prefix, "nogice")
-    for i, pos in enumerate(LEG_POSITIONS):
-        leg_occ = _build_leg(nogice_comp, prefix, units)
-        _position_occurrence(nogice_comp, leg_occ, pos, prefix, f"noga {i + 1}")
-    occurrences["nogice"] = nogice_occ
-    nogice_occ.isLightBulbOn = False
+    if _lazy_enabled("nogice", _cabinet_flag_values(design, prefix)):
+        occurrences["nogice"] = _build_nogice(root, prefix, units)
 
     # --- initial visibility, matching the flag parameters -----------------
     for spec in PANELS:
-        if not spec.get("light_bulb", True):
+        # skipped lazy parts have no occurrence to hide
+        if not spec.get("light_bulb", True) and spec["name"] in occurrences:
             occurrences[spec["name"]].isLightBulbOn = False
     # hide the shelf pattern copies as well
     for occ in root.occurrences:
