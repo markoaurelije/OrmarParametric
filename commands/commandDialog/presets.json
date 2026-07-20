@@ -798,7 +798,7 @@
         "bok lijevo": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela",
+            "front": "Bijela",
             "bottom": "Bijela"
           }
         },
@@ -846,7 +846,7 @@
         "bok desno": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela",
+            "front": "Bijela",
             "bottom": "Bijela"
           }
         },
@@ -1038,13 +1038,13 @@
         "polica": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela"
+            "front": "Bijela"
           }
         },
         "bok lijevo": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela"
+            "front": "Bijela"
           }
         },
         "ledja": {
@@ -1069,7 +1069,8 @@
           "banding": {
             "back": "Bijela",
             "left": "Bijela",
-            "right": "Bijela"
+            "right": "Bijela",
+            "front": "Bijela"
           }
         },
         "ukruta otraga": {
@@ -1088,13 +1089,13 @@
         "bok desno": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela"
+            "front": "Bijela"
           }
         },
         "donja ploca": {
           "decor": "Bijela",
           "banding": {
-            "back": "Bijela"
+            "front": "Bijela"
           }
         },
         "zadnja": {
