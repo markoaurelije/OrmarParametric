@@ -6,14 +6,21 @@ actually *visible* (a hidden component -- or a hidden container like the
 Each visible board's DULJINA/ŠIRINA are **measured from the real 3D geometry**
 (not the parametric ``size`` expressions), so any manual edit a user makes to a
 board after the add-in creates it is reflected; the banding is reduced to the
-(long, short) counts the woodshop needs, and one row per identical piece (with a
-quantity) is written to the ``Elementi`` sheet of the Elgrad supplier order form
-(``narudzba-excel.xlsm``).
+(long, short) counts the woodshop needs.
 
-Dimensions come from the greatest-area-faces method (see ``_board_geometry_dims``):
-a board's two broad faces are its largest, their normal is the thickness axis,
-and length/width are the in-plane extent of the body's vertices -- measured in
-the board's *own* frame, so it stays correct even for a door swung open on its
+**One workbook per (decor, thickness) combination.**  A design can mix several
+board decors (colours) and several panel thicknesses (typically the 18mm base
+material and a thin back-panel material), and each is a physically distinct
+sheet good the woodshop orders separately -- so each combination gets its own
+copy of the Elgrad supplier order form (``narudzba-excel.xlsm``), with the
+decor name written into the sheet's IVERAL / RUB. TRAKA DEKOR cells and
+prepended to the output filename along with the thickness.
+
+Dimensions (and the thickness used to bucket boards into workbooks) come from
+the greatest-area-faces method (see ``_board_geometry_dims``): a board's two
+broad faces are its largest, their normal is the thickness axis, and
+length/width are the in-plane extent of the body's vertices -- measured in the
+board's *own* frame, so it stays correct even for a door swung open on its
 joint, and robust to grooves/split cuts (which only cut inward).
 
 No adsk model editing happens here: we only *read* geometry and finish state,
@@ -50,6 +57,13 @@ _COL_MEL_SHORT = 6   # F  mini/mel ABS short (unused -> blank)
 _COL_ABS_LONG = 7    # G  ABS 2mm long    banded long-edge count
 _COL_ABS_SHORT = 8   # H  ABS 2mm short   banded short-edge count
 _COL_NAPOMENA = 9    # I  NAPOMENA        board name (Croatian)
+
+# Header block (row 1): the board material ("IVERAL", merged B1:D1) and edge
+# band ("RUB. TRAKA DEKOR", merged G1:H1) decor-name cells.  One workbook is
+# written per (decor, thickness) bucket, so both get the bucket's decor name.
+_ROW_HEADER = 1
+_COL_IVERAL = 2      # B1  IVERAL           board decor name
+_COL_RUB_TRAKA = 7   # G1  RUB. TRAKA DEKOR edge band decor name
 
 
 # Row order in the sheet: bottom -> sides -> back -> top -> divider -> shelves
@@ -125,10 +139,12 @@ def _dims_from_geometry(points, thickness_normal, inplane_dir):
 
     Given the point cloud of the board's vertices, the thickness axis (the
     largest face's normal) and one in-plane axis, returns
-    ``(duljina, sirina, world_dims)``:
+    ``(duljina, sirina, debljina, world_dims)``:
 
     * ``duljina`` / ``sirina`` -- the longer / shorter of the two in-plane
       extents (DULJINA / ŠIRINA); the thickness extent is excluded.
+    * ``debljina`` -- the panel thickness (extent along the normal axis), used
+      to bucket boards into a workbook per material thickness.
     * ``world_dims`` -- a ``(dx, dy, dz)`` tuple with each of the board's three
       own-axis extents assigned to the world axis it most aligns with, for the
       banding long/short reduction (which is keyed to the board spec's plane).
@@ -143,15 +159,15 @@ def _dims_from_geometry(points, thickness_normal, inplane_dir):
     world = [0.0, 0.0, 0.0]
     for vec, ext in ((d1, e1), (d2, e2), (n, et)):
         world[max(range(3), key=lambda i: abs(vec[i]))] = ext
-    return duljina, sirina, tuple(world)
+    return duljina, sirina, et, tuple(world)
 
 
 def _board_geometry_dims(body):
     """Measure a solid board body from its actual geometry via the greatest-area
     faces: the two broad faces (largest area) define the thickness normal, and
     the board's length/width come from the extent of its vertices in-plane.
-    Returns ``(duljina, sirina, world_dims)`` in cm, or ``None`` if the body has
-    no usable planar geometry."""
+    Returns ``(duljina, sirina, debljina, world_dims)`` in cm, or ``None`` if the
+    body has no usable planar geometry."""
     faces = body.faces
     if faces.count == 0:
         return None
@@ -227,17 +243,30 @@ def _collect_boards(occ, out, prefix=""):
         _collect_boards(child, out, prefix)
 
 
+def _thickness_mm(debljina_cm):
+    """Bucket a measured thickness (cm) to the nearest whole millimetre, so
+    geometry noise (e.g. 1.7998 cm) doesn't split one physical thickness into
+    several buckets."""
+    return round(debljina_cm * 10)
+
+
 def _gather_rows(design):
-    """All cut-list rows for the design, grouped by cabinet then panel type.
-    Only *visible* boards are listed, and every dimension is measured from the
-    actual 3D geometry (so a user's manual edits after cabinet creation are
-    reflected), identical pieces collapsing into one row with a quantity."""
-    # Imported lazily: apply the model's *effective* banding (rule defaults +
-    # the user's manual banding overrides) so the cut list matches what the
-    # model is painted with, instead of re-deriving banding from rules alone.
+    """All cut-list rows for the design, bucketed by ``(decor, thickness_mm)``
+    -- each bucket is one physical sheet good and becomes its own workbook --
+    then grouped by cabinet then panel type within a bucket.  Only *visible*
+    boards are listed, and every dimension (including the thickness used for
+    bucketing) is measured from the actual 3D geometry, so a user's manual
+    edits after cabinet creation are reflected; identical pieces collapse into
+    one row with a quantity.
+
+    Returns ``{(decor, thickness_mm): [row, ...]}``.
+    """
+    # Imported lazily: apply the model's *effective* decor/banding (rule
+    # defaults + the user's manual overrides) so the cut list matches what the
+    # model is painted with, instead of re-deriving them from rules alone.
     from . import utils
 
-    rows = []
+    buckets = {}
     for prefix in _get_prefixes(design):
         flags = _cabinet_flags(design, prefix)
         cabinet = prefix.rstrip("_")
@@ -255,7 +284,16 @@ def _gather_rows(design):
                 _collect_boards(occ, boards, prefix)
         holder = wrapper if wrapper is not None else design.rootComponent
 
-        # banded orientations are per board spec (not per instance) -> cache
+        # decor / banded orientations are per board spec (not per instance) -> cache
+        decor_cache = {}
+
+        def _decor(spec_name):
+            if spec_name not in decor_cache:
+                decor_cache[spec_name] = utils.effective_decor(
+                    design, prefix, spec_name, holder, flags
+                )
+            return decor_cache[spec_name]
+
         banded_cache = {}
 
         def _banded(spec_name):
@@ -265,7 +303,8 @@ def _gather_rows(design):
                 )
             return banded_cache[spec_name]
 
-        # group identical measured pieces: (spec, DULJINA, ŠIRINA) -> row data
+        # group identical measured pieces per bucket:
+        # (decor, thickness_mm, spec, DULJINA, ŠIRINA) -> row data
         groups = {}
         for spec_name, body in boards:
             measured = _board_geometry_dims(body)
@@ -273,8 +312,10 @@ def _gather_rows(design):
                 futil.log(f"Cut list: could not measure a '{prefix}{spec_name}' body",
                           adsk.core.LogLevels.WarningLogLevel)
                 continue
-            duljina, sirina, world_dims = measured
-            key = (spec_name, round(duljina, 1), round(sirina, 1))
+            duljina, sirina, debljina, world_dims = measured
+            decor = _decor(spec_name)
+            thickness_mm = _thickness_mm(debljina)
+            key = (decor, thickness_mm, spec_name, round(duljina, 1), round(sirina, 1))
             if key in groups:
                 groups[key]["qty"] += 1
             else:
@@ -284,11 +325,13 @@ def _gather_rows(design):
         def _order(name):
             return _ROW_ORDER.index(name) if name in _ROW_ORDER else len(_ROW_ORDER)
 
-        for key in sorted(groups, key=lambda k: (_order(k[0]), -k[1], -k[2])):
+        for key in sorted(groups, key=lambda k: (k[0], k[1], _order(k[2]), -k[3], -k[4])):
+            decor, thickness_mm, spec_name, _duljina, _sirina = key
             g = groups[key]
-            rows.append(_row(cabinet, g["spec"], g["duljina"], g["sirina"],
-                             g["world"], _banded(g["spec"]), g["qty"]))
-    return rows
+            row = _row(cabinet, g["spec"], g["duljina"], g["sirina"],
+                       g["world"], _banded(g["spec"]), g["qty"])
+            buckets.setdefault((decor, thickness_mm), []).append(row)
+    return buckets
 
 
 # ---------------------------------------------------------------------------
@@ -300,26 +343,36 @@ def _template_path():
     return os.path.join(root, "narudzba-excel.xlsm")
 
 
-def _default_output_path(design):
+def _safe_name(name):
+    return re.sub(r'[\\/:*?"<>|]+', "_", name).strip()
+
+
+def _default_output_path(design, decor, thickness_mm):
     """A discoverable place to drop the exported copy: the Desktop if it exists,
-    otherwise the home directory, named after the active document."""
+    otherwise the home directory.  The decor name and thickness are prepended so
+    the per-(decor, thickness) workbooks for one design don't collide, and are
+    identifiable to the woodshop at a glance."""
     app = adsk.core.Application.get()
-    doc_name = app.activeDocument.name or "ormar"
-    safe = re.sub(r'[\\/:*?"<>|]+', "_", doc_name).strip() or "ormar"
+    doc_name = _safe_name(app.activeDocument.name or "ormar") or "ormar"
+    decor_name = _safe_name(decor) or "decor"
     home = os.path.expanduser("~")
     desktop = os.path.join(home, "Desktop")
     folder = desktop if os.path.isdir(desktop) else home
-    return os.path.join(folder, f"{safe}-krojna-lista.xlsm")
+    return os.path.join(folder, f"{decor_name}-{thickness_mm}mm-{doc_name}-krojna-lista.xlsm")
 
 
-def _write_to_excel(rows, template_path, output_path):
-    """Load the template (preserving VBA + every other sheet), clear the old data
+def _write_to_excel(rows, template_path, output_path, decor):
+    """Load the template (preserving VBA + every other sheet), stamp the decor
+    name into the IVERAL / RUB. TRAKA DEKOR header cells, clear the old data
     band, write the rows, and save a copy to output_path.  The template file is
     never modified."""
     import openpyxl
 
     wb = openpyxl.load_workbook(template_path, keep_vba=True)
     ws = wb[_SHEET_NAME]
+
+    ws.cell(row=_ROW_HEADER, column=_COL_IVERAL).value = decor
+    ws.cell(row=_ROW_HEADER, column=_COL_RUB_TRAKA).value = decor
 
     # clear the pre-formatted data band (B..I), leaving column A's R.B. numbering
     for r in range(_FIRST_DATA_ROW, _LAST_TEMPLATE_ROW + 1):
@@ -345,24 +398,30 @@ def _write_to_excel(rows, template_path, output_path):
 # ---------------------------------------------------------------------------
 # Entry point (called from the dialog's export button).
 # ---------------------------------------------------------------------------
-def export_cut_list(output_path=None):
-    """Export the active design's cut list to an .xlsm copy of the order form.
+def export_cut_list():
+    """Export the active design's cut list to one .xlsm copy of the order form
+    per (decor, thickness) combination present in the design -- each is a
+    physically distinct sheet good the woodshop orders separately.
 
-    Returns the output path on success, or ``None`` if the design has no
-    cabinets (nothing to export).  Raises on I/O / openpyxl errors so the caller
-    can surface them.
+    Returns the list of output paths on success, or ``None`` if the design has
+    no cabinets (nothing to export).  Raises on I/O / openpyxl errors so the
+    caller can surface them.
     """
     app = adsk.core.Application.get()
     design = adsk.fusion.Design.cast(app.activeProduct)
     if design is None:
         return None
 
-    rows = _gather_rows(design)
-    if not rows:
+    buckets = _gather_rows(design)
+    if not buckets:
         return None
 
-    if output_path is None:
-        output_path = _default_output_path(design)
-    _write_to_excel(rows, _template_path(), output_path)
-    futil.log(f"Cut list exported: {len(rows)} rows -> {output_path}")
-    return output_path
+    template_path = _template_path()
+    output_paths = []
+    for (decor, thickness_mm) in sorted(buckets):
+        rows = buckets[(decor, thickness_mm)]
+        output_path = _default_output_path(design, decor, thickness_mm)
+        _write_to_excel(rows, template_path, output_path, decor)
+        futil.log(f"Cut list exported: {len(rows)} rows -> {output_path}")
+        output_paths.append(output_path)
+    return output_paths

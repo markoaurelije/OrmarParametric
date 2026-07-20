@@ -156,7 +156,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 app = adsk.core.Application.get()
                 ui = app.userInterface
                 try:
-                    output_path = excel_export.export_cut_list()
+                    output_paths = excel_export.export_cut_list()
                 except Exception:
                     ui.messageBox(
                         "Izvoz krojne liste nije uspio:\n{}".format(
@@ -164,8 +164,9 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                         )
                     )
                 else:
-                    if output_path:
-                        ui.messageBox(f"Krojna lista spremljena:\n{output_path}")
+                    if output_paths:
+                        paths_text = "\n".join(output_paths)
+                        ui.messageBox(f"Krojna lista spremljena:\n{paths_text}")
                     else:
                         ui.messageBox(
                             "Nema ormara za izvoz u ovom dizajnu."
