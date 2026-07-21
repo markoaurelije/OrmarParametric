@@ -406,6 +406,14 @@ def create_dialog(inputs: adsk.core.CommandInputs):
             "(postojeće ime = uredi/prepiši predložak, novo ime = dodaj novi)."
         )
 
+        copy_btn = tab_input.children.addBoolValueInput(
+            f"{prefix}copy_cabinet", "Kopiraj ormar", False, "", False
+        )
+        copy_btn.tooltip = (
+            "Dodaj novi ormar koji je kopija ovog -- sa svim njegovim trenutnim "
+            "parametrima, bojama ploča i kantiranjem. Ime se traži pri kliku."
+        )
+
         update_btn = tab_input.children.addBoolValueInput(
             f"{prefix}update_model", "Ažuriraj model", False, "", True
         )
@@ -1559,17 +1567,26 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
     apply_preset_finish(prefix, preset_name, use_session=True)
 
 
-def apply_preset_params(cabinet_name: str, preset_name: str):
+def _resolve_preset(preset):
+    """A template, given either its name in presets.json or an already-in-memory
+    template (the {"params", "finish"} snapshot capture_cabinet_spec returns, as
+    used by "Kopiraj ormar").  None if a named template can't be found."""
+    if preset is None or isinstance(preset, (dict, list)):
+        return preset
+    resolved = presets_store.get_presets().get(preset)
+    if not resolved:
+        futil.log(f"Template '{preset}' not found", adsk.core.LogLevels.ErrorLogLevel)
+    return resolved
+
+
+def apply_preset_params(cabinet_name: str, preset):
     """Set a freshly generated cabinet's user parameters from a template.
 
     Used by the add-cabinet flow, where the new cabinet has no dialog tab yet,
     so parameters are written directly (visibility/finish are applied by the
     normal per-prefix pass that runs right after materialization)."""
-    preset = presets_store.get_presets().get(preset_name)
+    preset = _resolve_preset(preset)
     if not preset:
-        futil.log(
-            f"Template '{preset_name}' not found", adsk.core.LogLevels.ErrorLogLevel
-        )
         return
     prefix = f"{cabinet_name}_"
     for param in presets_store.preset_params(preset):
@@ -1579,7 +1596,7 @@ def apply_preset_params(cabinet_name: str, preset_name: str):
         )
 
 
-def apply_preset_finish(prefix: str, preset_name: str, use_session: bool = True):
+def apply_preset_finish(prefix: str, preset, use_session: bool = True):
     """Apply a template's saved board finish (decor colours + edge banding) to
     a cabinet.
 
@@ -1590,8 +1607,10 @@ def apply_preset_finish(prefix: str, preset_name: str, use_session: bool = True)
     driving.  use_session=False writes attribute overrides directly instead,
     for the "new cabinet in a brand-new document" path (see
     request_add_cabinet's J1 branch), which has no command execute cycle of
-    its own to persist session overrides through."""
-    preset = presets_store.get_presets().get(preset_name)
+    its own to persist session overrides through.
+
+    `preset` is a template name or an in-memory snapshot (see _resolve_preset)."""
+    preset = _resolve_preset(preset)
     boards = presets_store.preset_finish(preset).get("boards")
     if not boards:
         return  # legacy/finish-less template -- leave rule-default colours
@@ -1623,18 +1642,23 @@ def apply_preset_finish(prefix: str, preset_name: str, use_session: bool = True)
                 set_banding_override(holder, spec, orient, value)
 
 
-def save_cabinet_as_preset(
-    prefix: str, preset_name: str, inputs: Optional[adsk.core.CommandInputs] = None
-):
-    """Save a cabinet's current parameter values and board finish as a named
-    template.
+def capture_cabinet_spec(
+    prefix: str, inputs: Optional[adsk.core.CommandInputs] = None
+) -> dict:
+    """Snapshot a cabinet as an in-memory template.
 
     Reads every dialog-managed user parameter of the cabinet plus its current
     per-board decor/banding (via effective_decor/effective_banding, so session
-    clicks not yet committed are included) and writes the full set into
-    presets.json (existing name = overwrite/edit, new name = add).  The
-    cabinet's own prefix inside an expression is stored as the "{prefix}"
-    placeholder so cross-parameter references stay portable."""
+    clicks not yet committed are included) and returns the same
+    {"params": [...], "finish": {...}} shape templates use on disk (see
+    presets.py).  Values are read from the open dialog's inputs when available
+    so *uncommitted* edits are captured too, falling back to the user parameter
+    for anything the dialog doesn't hold.  The cabinet's own prefix inside an
+    expression becomes the "{prefix}" placeholder so cross-parameter references
+    stay portable to whichever cabinet the snapshot is applied to.
+
+    Used both by "Spremi kao predložak" (which writes it to presets.json) and by
+    "Kopiraj ormar" (which applies it straight to a new cabinet)."""
     design = adsk.fusion.Design.cast(app.activeProduct)
     params = []
     for item in input_items:
@@ -1683,10 +1707,19 @@ def save_cabinet_as_preset(
         }
         finish = {"boards": boards}
 
-    presets_store.save_preset(preset_name, params, finish)
+    return {"params": params, "finish": finish}
+
+
+def save_cabinet_as_preset(
+    prefix: str, preset_name: str, inputs: Optional[adsk.core.CommandInputs] = None
+):
+    """Save a cabinet's current parameters + board finish into presets.json
+    under a name (existing name = overwrite/edit, new name = add)."""
+    spec = capture_cabinet_spec(prefix, inputs)
+    presets_store.save_preset(preset_name, spec["params"], spec["finish"])
     futil.log(
-        f"Saved template '{preset_name}' ({len(params)} params, "
-        f"{len(finish.get('boards', {}))} boards) from {prefix}"
+        f"Saved template '{preset_name}' ({len(spec['params'])} params, "
+        f"{len(spec['finish'].get('boards', {}))} boards) from {prefix}"
     )
 
 
@@ -1710,8 +1743,12 @@ def refresh_preset_dropdowns(inputs: adsk.core.CommandInputs):
                 dropdown.listItems.add(name, False, "")
 
 
-def request_add_cabinet(new_component_name: str, preset_name: Optional[str] = None):
+def request_add_cabinet(new_component_name: str, preset=None):
     """Handle a "Dodaj ormar" click, optionally applying a template.
+
+    `preset` is either a template name from presets.json or an in-memory
+    snapshot of an existing cabinet (see capture_cabinet_spec) — the latter is
+    what makes "Kopiraj ormar" a plain add-cabinet with a captured template.
 
     J1 is kept pristine: it has no special role anymore (nothing is copied
     from it), but a cabinet generated at the origin would land exactly on
@@ -1744,11 +1781,11 @@ def request_add_cabinet(new_component_name: str, preset_name: Optional[str] = No
             app.userInterface.messageBox(str(e), "Error")
             return
         futil.log(f"New cabinet generated: {occurrence.component.name}")
-        if preset_name:
+        if preset:
             # no dialog is attached to the brand-new document, so apply the
             # template and the resulting visibility/finish directly
-            apply_preset_params(new_component_name, preset_name)
-            apply_preset_finish(f"{new_component_name}_", preset_name, use_session=False)
+            apply_preset_params(new_component_name, preset)
+            apply_preset_finish(f"{new_component_name}_", preset, use_session=False)
             set_component_visibility(f"{new_component_name}_")
             apply_finish(f"{new_component_name}_")
         return
@@ -1766,19 +1803,46 @@ def request_add_cabinet(new_component_name: str, preset_name: Optional[str] = No
         CommandExecutePreviewHandler,
     )
 
-    CommandExecutePreviewHandler.pending_cabinets[new_component_name] = preset_name
-    CommandExecuteHandler.pending_cabinets[new_component_name] = preset_name
+    CommandExecutePreviewHandler.pending_cabinets[new_component_name] = preset
+    CommandExecuteHandler.pending_cabinets[new_component_name] = preset
     futil.log(
-        f"Queued cabinet '{new_component_name}' (template: {preset_name}) "
+        f"Queued cabinet '{new_component_name}' "
+        f"(template: {preset if isinstance(preset, str) else 'kopija'}) "
         "to materialize on next preview/execute"
     )
+
+
+def request_copy_cabinet(
+    source_prefix: str, new_component_name: str, inputs: adsk.core.CommandInputs
+):
+    """Handle a "Kopiraj ormar" click: add a new cabinet that is an exact copy
+    of an existing one.
+
+    The source cabinet is snapshotted into an in-memory template (its current
+    parameters — i.e. everything the user has changed away from whatever it
+    started as — plus its board colours and edge banding) and queued as the new
+    cabinet's template, so the copy rides the ordinary deferred add-cabinet
+    path and needs nothing of its own on the preview/execute side.
+
+    The snapshot is taken *now*, at click time, from the dialog inputs, so the
+    copy reflects what the user currently sees on the source cabinet's tab even
+    if those edits haven't been committed yet."""
+    spec = capture_cabinet_spec(source_prefix, inputs)
+    futil.log(
+        f"Copying cabinet '{source_prefix}' -> '{new_component_name}' "
+        f"({len(spec['params'])} params, "
+        f"{len(spec['finish'].get('boards', {}))} boards)"
+    )
+    request_add_cabinet(new_component_name, spec)
 
 
 _materializing = False
 
 
 def materialize_pending_cabinets(pending_cabinets: dict):
-    """pending_cabinets maps cabinet name -> template name (or None)."""
+    """pending_cabinets maps cabinet name -> template: a name from presets.json,
+    an in-memory snapshot of a copied cabinet (see request_copy_cabinet), or
+    None for the plain base cabinet."""
     global _materializing
     if not pending_cabinets or _materializing:
         # guards against reentrant preview/execute cycles Fusion may pump
@@ -1787,16 +1851,17 @@ def materialize_pending_cabinets(pending_cabinets: dict):
     _materializing = True
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
-        for name, preset_name in pending_cabinets.items():
+        for name, preset in pending_cabinets.items():
             if design.userParameters.itemByName(f"{name}_sirina"):
                 continue  # already persisted this cycle (e.g. on execute, no rollback happened)
             try:
                 base_design.add_cabinet(design, name)
-                if preset_name:
-                    apply_preset_params(name, preset_name)
-                    apply_preset_finish(f"{name}_", preset_name, use_session=True)
+                if preset:
+                    apply_preset_params(name, preset)
+                    apply_preset_finish(f"{name}_", preset, use_session=True)
                 futil.log(
-                    f"Materialized pending cabinet '{name}' (template: {preset_name})"
+                    f"Materialized pending cabinet '{name}' (template: "
+                    f"{preset if isinstance(preset, str) else 'kopija'})"
                 )
             except ValueError as e:
                 futil.log(

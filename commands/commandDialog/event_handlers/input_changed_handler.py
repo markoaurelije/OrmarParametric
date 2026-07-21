@@ -9,6 +9,7 @@ from ....lib import fusionAddInUtils as futil
 
 from ..utils import (
     request_add_cabinet,
+    request_copy_cabinet,
     request_delete_cabinet,
     load_preset,
     save_cabinet_as_preset,
@@ -173,6 +174,22 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 if cancelled or not name.strip():
                     return
                 request_add_cabinet(name.strip(), preset_name)
+                return
+            elif changed_input.id.endswith("_copy_cabinet"):
+                # Duplicate this cabinet: same modal name prompt as "Dodaj
+                # ormar", but the new cabinet's template is a snapshot of this
+                # one (current parameters + finish) instead of a stored one.
+                prefix = changed_input.id[: -len("copy_cabinet")]
+                app = adsk.core.Application.get()
+                ui = app.userInterface
+                name, cancelled = ui.inputBox(
+                    f"Ime kopije ormara '{prefix.rstrip('_')}':",
+                    "Kopiraj ormar",
+                    next_free_cabinet_name(),
+                )
+                if cancelled or not name.strip():
+                    return
+                request_copy_cabinet(prefix, name.strip(), self.inputs)
                 return
             elif changed_input.id == "exportCutListButton":
                 app = adsk.core.Application.get()
