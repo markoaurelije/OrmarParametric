@@ -1,6 +1,7 @@
 from collections import defaultdict
 import adsk, adsk.core, adsk.cam
 from ..utils import create_dialog, clear_session_finish_overrides
+from ..preview_state import session_state
 from .input_changed_handler import InputChangedHandler
 
 # from .command_destroy_handler import CommandDestroyHandler
@@ -24,6 +25,7 @@ class CommandDestroyHandler(adsk.core.CommandEventHandler):
 
         eventArgs = adsk.core.CommandEventArgs.cast(args)
         futil.log(f"Command Destroy Event")
+        session_state.reset()
         local_handlers = []
 
 
@@ -40,6 +42,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
         try:
             global local_handlers
             local_handlers = []
+            session_state.reset()
             clear_session_finish_overrides()  # fresh per dialog open
             cmd = args.command
             inputs = cmd.commandInputs

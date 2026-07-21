@@ -255,6 +255,14 @@ def _create_project_tab(inputs: adsk.core.CommandInputs):
         "kliku (predloži se sljedeće slobodno ime)."
     )
 
+    live_preview = ormari.children.addBoolValueInput(
+        "live_preview", "Pregled uživo", True, "", False
+    )
+    live_preview.tooltip = (
+        "Automatski ažuriraj samo promijenjeni ormar. Isključi za brzo uređivanje "
+        "više opcija pa koristi 'Ažuriraj model' na kartici ormara."
+    )
+
     # -- Bojanje i kantiranje: design-wide finish palette + pickers ---------
     finish = tab.addGroupCommandInput("projekt_finish", "Bojanje i kantiranje")
     finish.isExpanded = True
@@ -396,6 +404,13 @@ def create_dialog(inputs: adsk.core.CommandInputs):
         save_btn.tooltip = (
             "Spremi trenutne parametre ovog ormara kao imenovani predložak "
             "(postojeće ime = uredi/prepiši predložak, novo ime = dodaj novi)."
+        )
+
+        update_btn = tab_input.children.addBoolValueInput(
+            f"{prefix}update_model", "Ažuriraj model", False, "", True
+        )
+        update_btn.tooltip = (
+            "Primijeni promjene s ove kartice samo na ovaj ormar."
         )
 
         # delete-cabinet button (per tab)
@@ -600,22 +615,51 @@ def input_to_user_parameter(
         return
 
     if input_item.type == InputType.VALUE:
-        param.expression = adsk.core.ValueCommandInput.cast(input).expression
+        expression = adsk.core.ValueCommandInput.cast(input).expression
+        if param.expression.strip() != expression.strip():
+            param.expression = expression
     elif input_item.type == InputType.BOOL:
-        param.value = 1 if input.value else 0
+        value = 1 if input.value else 0
+        if int(round(param.value)) != value:
+            param.value = value
     elif input_item.type == InputType.GROUP_WITH_CHECKBOX:
-        param.value = 1 if input.isEnabledCheckBoxChecked else 0
+        value = 1 if input.isEnabledCheckBoxChecked else 0
+        if int(round(param.value)) != value:
+            param.value = value
     elif input_item.type == InputType.INTEGER:
-        param.expression = str(input.value)
+        value = int(input.value)
+        if int(round(param.value)) != value:
+            param.expression = str(value)
     elif input_item.type == InputType.DROPDOWN:
         selected_item = adsk.core.DropDownCommandInput.cast(input).selectedItem
         if selected_item:
-            param.expression = selected_item.name
+            if param.expression.strip() != selected_item.name.strip():
+                param.expression = selected_item.name
         else:
             futil.log(
                 f"Selected item for {user_param_name} is None",
                 adsk.core.LogLevels.WarningLogLevel,
             )
+
+
+def update_cabinets(inputs: adsk.core.CommandInputs, prefixes):
+    """Apply dialog changes to only the requested cabinets."""
+    succeeded = set()
+    for prefix in sorted(set(prefixes)):
+        try:
+            if _find_command_input(inputs, prefix + "sirina") is not None:
+                set_user_parameters_via_inputs(inputs, prefix)
+            materialize_enabled_parts(prefix)
+            set_component_visibility(prefix)
+            reseat_free_wrappers(prefix)
+            apply_finish(prefix)
+            succeeded.add(prefix)
+        except Exception as e:
+            futil.log(
+                f"update_cabinets({prefix}) failed: {e}",
+                adsk.core.LogLevels.ErrorLogLevel,
+            )
+    return succeeded
 
 
 def set_component_visibility(prefix):
@@ -1042,6 +1086,27 @@ def _cabinet_flags(design, prefix):
         p = design.userParameters.item(i)
         if p.name.startswith(prefix):
             flags[p.name[len(prefix):]] = p.value
+    return flags
+
+
+def _cabinet_flags_via_inputs(design, prefix, inputs):
+    flags = _cabinet_flags(design, prefix)
+    if inputs is None:
+        return flags
+    for item in input_items:
+        if item.input_has_no_param or not item.name:
+            continue
+        input = _find_command_input(inputs, prefix + item.name)
+        if input is None:
+            continue
+        if item.type == InputType.VALUE:
+            flags[item.name] = adsk.core.ValueCommandInput.cast(input).value
+        elif item.type == InputType.INTEGER:
+            flags[item.name] = input.value
+        elif item.type == InputType.BOOL:
+            flags[item.name] = 1 if input.value else 0
+        elif item.type == InputType.GROUP_WITH_CHECKBOX:
+            flags[item.name] = 1 if input.isEnabledCheckBoxChecked else 0
     return flags
 
 
@@ -1474,13 +1539,23 @@ def load_preset(preset_name: str, inputs: adsk.core.CommandInputs, prefix: str =
             continue
         input_param = input_param[0]
 
-        set_user_parameter(
-            f"{prefix}{input_param.name}",
-            _preset_expression(param["expression"], prefix),
-        )
-        set_input_via_userparam(input_param, inputs, prefix)
+        expression = _preset_expression(param["expression"], prefix)
+        input = _find_command_input(inputs, f"{prefix}{input_param.name}")
+        if input_param.type == InputType.VALUE:
+            adsk.core.ValueCommandInput.cast(input).expression = expression
+        elif input_param.type == InputType.INTEGER:
+            input.value = int(float(expression))
+        elif input_param.type == InputType.BOOL:
+            input.value = float(expression) != 0
+        elif input_param.type == InputType.GROUP_WITH_CHECKBOX:
+            input.isEnabledCheckBoxChecked = float(expression) != 0
+        elif input_param.type == InputType.DROPDOWN:
+            dropdown = adsk.core.DropDownCommandInput.cast(input)
+            for item in dropdown.listItems:
+                if item.name == expression:
+                    item.isSelected = True
+                    break
 
-    set_component_visibility(prefix)
     apply_preset_finish(prefix, preset_name, use_session=True)
 
 
@@ -1548,7 +1623,9 @@ def apply_preset_finish(prefix: str, preset_name: str, use_session: bool = True)
                 set_banding_override(holder, spec, orient, value)
 
 
-def save_cabinet_as_preset(prefix: str, preset_name: str):
+def save_cabinet_as_preset(
+    prefix: str, preset_name: str, inputs: Optional[adsk.core.CommandInputs] = None
+):
     """Save a cabinet's current parameter values and board finish as a named
     template.
 
@@ -1563,13 +1640,29 @@ def save_cabinet_as_preset(prefix: str, preset_name: str):
     for item in input_items:
         if item.input_has_no_param:
             continue
-        user_param = design.userParameters.itemByName(prefix + item.name)
-        if user_param is None:
-            continue
+        expression = None
+        input = _find_command_input(inputs, prefix + item.name) if inputs else None
+        if input is not None:
+            if item.type == InputType.VALUE:
+                expression = adsk.core.ValueCommandInput.cast(input).expression
+            elif item.type == InputType.INTEGER:
+                expression = str(input.value)
+            elif item.type == InputType.BOOL:
+                expression = "1" if input.value else "0"
+            elif item.type == InputType.GROUP_WITH_CHECKBOX:
+                expression = "1" if input.isEnabledCheckBoxChecked else "0"
+            elif item.type == InputType.DROPDOWN:
+                selected = adsk.core.DropDownCommandInput.cast(input).selectedItem
+                expression = selected.name if selected else None
+        if expression is None:
+            user_param = design.userParameters.itemByName(prefix + item.name)
+            if user_param is None:
+                continue
+            expression = user_param.expression
         params.append(
             {
                 "paramName": item.name,
-                "expression": user_param.expression.replace(prefix, "{prefix}"),
+                "expression": expression.replace(prefix, "{prefix}"),
             }
         )
 
@@ -1580,7 +1673,7 @@ def save_cabinet_as_preset(prefix: str, preset_name: str):
     )
     finish = {}
     if wrapper is not None:
-        flags = _cabinet_flags(design, prefix)
+        flags = _cabinet_flags_via_inputs(design, prefix, inputs)
         boards = {
             spec: {
                 "decor": effective_decor(design, prefix, spec, wrapper, flags),

@@ -3,16 +3,12 @@ import adsk, adsk.core
 from ....lib import fusionAddInUtils as futil
 from ..utils import (
     collect_delete_requests,
-    reseat_free_wrappers,
-    materialize_enabled_parts,
-    get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
-    apply_finish,
     persist_finish_overrides,
-    set_component_visibility,
-    set_user_parameters_via_inputs,
+    update_cabinets,
 )
+from ..preview_state import session_state
 from ...commandDialog.ultrabox import perform_add_ultrabox
 
 
@@ -43,18 +39,30 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         # pending_deletions sets.
         collect_delete_requests(args.command.commandInputs)
 
+        deleting_prefixes = set(CommandExecuteHandler.pending_deletions)
         materialize_pending_cabinets(CommandExecuteHandler.pending_cabinets)
         materialize_pending_deletions(CommandExecuteHandler.pending_deletions)
+        session_state.discard(deleting_prefixes)
 
-        prefixis = get_prefixes()
+        prefixes = session_state.execute_prefixes()
+        prefixes.update(
+            f"{name}_" for name in CommandExecuteHandler.pending_cabinets
+        )
+        prefixes.update(CommandExecuteHandler.ultrabox_add_fired)
+        prefixes.difference_update(deleting_prefixes)
 
-        for prefix in prefixis:
-            reseat_free_wrappers(prefix)
-            set_user_parameters_via_inputs(args.command.commandInputs, prefix)
-            materialize_enabled_parts(prefix)
-            set_component_visibility(prefix)
-            apply_finish(prefix)
+        succeeded = update_cabinets(args.command.commandInputs, prefixes)
+        failed = prefixes - succeeded
+        if failed:
+            CommandExecuteHandler.pending_deletions.update(deleting_prefixes)
+            eventArgs.executeFailed = True
+            eventArgs.executeFailedMessage = (
+                "Ažuriranje ormara nije uspjelo: "
+                + ", ".join(prefix.rstrip("_") for prefix in sorted(failed))
+            )
+            return
 
+        for prefix in sorted(succeeded):
             for idx in range(CommandExecuteHandler.ultrabox_add_fired.get(prefix, 0)):
                 perform_add_ultrabox(prefix, idx + 1)
 

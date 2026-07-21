@@ -3,16 +3,12 @@ import adsk, adsk.core
 from ....lib import fusionAddInUtils as futil
 from ..utils import (
     collect_delete_requests,
-    reseat_free_wrappers,
-    materialize_enabled_parts,
-    get_prefixes,
     materialize_pending_cabinets,
     materialize_pending_deletions,
-    apply_finish,
     refresh_colors_in_use,
-    set_component_visibility,
-    set_user_parameters_via_inputs,
+    update_cabinets,
 )
+from ..preview_state import session_state
 from ...commandDialog.ultrabox import perform_add_ultrabox
 
 
@@ -43,6 +39,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         # pending_deletions sets.
         collect_delete_requests(args.command.commandInputs)
 
+        deleting_prefixes = set(CommandExecutePreviewHandler.pending_deletions)
         materialize_pending_cabinets(CommandExecutePreviewHandler.pending_cabinets)
         # Preview cannot delete user parameters (Fusion API restriction) —
         # only remove the occurrence for visual feedback.  Full cleanup
@@ -50,22 +47,26 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         materialize_pending_deletions(
             CommandExecutePreviewHandler.pending_deletions, delete_params=False
         )
+        CommandExecutePreviewHandler.pending_deletions.update(deleting_prefixes)
+        session_state.discard(deleting_prefixes)
 
-        prefixis = get_prefixes()
+        prefixes = session_state.preview_prefixes()
+        prefixes.update(
+            f"{name}_" for name in CommandExecutePreviewHandler.pending_cabinets
+        )
+        prefixes.update(CommandExecutePreviewHandler.ultrabox_add_fired)
+        prefixes.difference_update(deleting_prefixes)
 
-        for prefix in prefixis:
-            reseat_free_wrappers(prefix)
-            set_user_parameters_via_inputs(args.command.commandInputs, prefix)
-            materialize_enabled_parts(prefix)
-            set_component_visibility(prefix)
-            apply_finish(prefix)
+        succeeded = update_cabinets(args.command.commandInputs, prefixes)
+        session_state.mark_preview_succeeded(succeeded)
 
+        for prefix in sorted(succeeded):
             for idx in range(
                 CommandExecutePreviewHandler.ultrabox_add_fired.get(prefix, 0)
             ):
                 perform_add_ultrabox(prefix, idx + 1)
 
-        # keep the "Boje u projektu" status line current as flags/colours change
-        refresh_colors_in_use(args.command.commandInputs)
+        if succeeded:
+            refresh_colors_in_use(args.command.commandInputs)
 
         futil.log(f"Command Execute Preview Event finished")

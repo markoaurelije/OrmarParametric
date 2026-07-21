@@ -23,6 +23,12 @@ from ..utils import (
     PRESET_PLACEHOLDER,
 )
 from ..dialog_config import InputType, input_items
+from ..preview_state import cabinet_prefix, session_state
+
+
+PARAMETER_NAMES = [
+    item.name for item in input_items if not item.input_has_no_param and item.name
+]
 
 
 class InputChangedHandler(adsk.core.InputChangedEventHandler):
@@ -45,6 +51,19 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             # self.inputsManager.processChangedInput(self.inputs, args.input)
             changed_input = args.input
             futil.log(f"Input changed: {changed_input.id}")
+
+            if changed_input.id == "live_preview":
+                session_state.live_preview = bool(changed_input.value)
+                return
+
+            if changed_input.id.endswith("_update_model"):
+                prefix = changed_input.id[: -len("update_model")]
+                session_state.request_update(prefix)
+                return
+
+            changed_prefix = cabinet_prefix(changed_input.id, PARAMETER_NAMES)
+            if changed_prefix:
+                session_state.mark_dirty(changed_prefix)
 
             if changed_input.id in (
                 "finish_paint_select",
@@ -88,6 +107,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     # (the executePreview pass repaints too, but may not fire on
                     # a selection-only change).
                     for prefix in touched:
+                        session_state.request_update(prefix)
                         apply_finish(prefix)
                     if touched:
                         refresh_colors_in_use(self.inputs)
@@ -98,6 +118,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 selected = changed_input.selectedItem
                 if selected and selected.name != PRESET_PLACEHOLDER:
                     load_preset(selected.name, self.inputs, prefix)
+                    session_state.mark_dirty(prefix)
                 return
             elif changed_input.id.endswith("_save_preset"):
                 # Save this cabinet's current parameters as a named template.
@@ -124,7 +145,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 )
                 if cancelled or not name.strip():
                     return
-                save_cabinet_as_preset(prefix, name.strip())
+                save_cabinet_as_preset(prefix, name.strip(), self.inputs)
                 refresh_preset_dropdowns(self.inputs)
                 ui.messageBox(f"Predložak '{name.strip()}' spremljen.")
                 return
